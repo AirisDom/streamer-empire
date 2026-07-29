@@ -17,10 +17,9 @@ export enum EquipmentCategory {
   Camera = 'camera',
   Microphone = 'microphone',
   Lighting = 'lighting',
-  Computer = 'computer',
-  StreamDeck = 'stream_deck',
-  Background = 'background',
+  PC = 'pc',
   Chair = 'chair',
+  Decor = 'decor',
 }
 
 export enum StaffRole {
@@ -54,6 +53,9 @@ export interface Equipment {
   price: number;
   qualityBonus: number;
   description: string;
+  asset: string;
+  unlockLevel?: number;
+  upgradesFrom?: string;
 }
 
 export interface StaffPerk {
