@@ -1,14 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import StreamingRoom from './StreamingRoom';
 import StatsOverlay from './StatsOverlay';
+import EquipmentShop from './EquipmentShop';
 
 interface GameLayoutProps {
   onReturnToMenu: () => void;
 }
 
 export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
+  const [showShop, setShowShop] = useState(false);
   const player = useGameStore((state) => state.player);
   const resetGame = useGameStore((state) => state.resetGame);
 
@@ -64,7 +67,7 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
               <div className="space-y-2">
                 <ActionButton label="Go Live" disabled />
                 <ActionButton label="Schedule" disabled />
-                <ActionButton label="Shop" disabled />
+                <ActionButton label="Shop" onClick={() => setShowShop(true)} />
                 <ActionButton label="Hire Staff" disabled />
               </div>
             </div>
@@ -88,6 +91,8 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
           <span>Streamer Empire v0.1</span>
         </div>
       </footer>
+
+      {showShop && <EquipmentShop onClose={() => setShowShop(false)} />}
     </div>
   );
 }
