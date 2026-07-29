@@ -1,0 +1,167 @@
+import { create } from 'zustand';
+import {
+  ContentNiche,
+  Equipment,
+  GameState,
+  Player,
+  Channel,
+  Analytics,
+} from '../types';
+
+function createInitialAnalytics(): Analytics {
+  return {
+    totalStreams: 0,
+    totalStreamTime: 0,
+    averageViewers: 0,
+    peakViewers: 0,
+    totalSubscribers: 0,
+    subscriberGrowthRate: 0,
+    totalRevenue: 0,
+    revenueBySource: {
+      subscriptions: 0,
+      donations: 0,
+      brandDeals: 0,
+      adRevenue: 0,
+    },
+    viewersByNiche: {
+      [ContentNiche.Gaming]: 0,
+      [ContentNiche.Cooking]: 0,
+      [ContentNiche.Music]: 0,
+      [ContentNiche.IRL]: 0,
+    },
+    bestStreamDay: 0,
+    bestStreamHour: 0,
+  };
+}
+
+function createInitialChannel(name: string, niche: ContentNiche): Channel {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    niche,
+    subscribers: 0,
+    followers: 0,
+    reputation: 50,
+    createdAt: Date.now(),
+    schedule: [],
+    equipment: [],
+    staff: [],
+    analytics: createInitialAnalytics(),
+    streamHistory: [],
+  };
+}
+
+function createInitialPlayer(
+  channelName: string,
+  niche: ContentNiche
+): Player {
+  return {
+    id: crypto.randomUUID(),
+    username: channelName,
+    money: 500,
+    energy: 100,
+    maxEnergy: 100,
+    experience: 0,
+    level: 1,
+    channel: createInitialChannel(channelName, niche),
+    currentWeek: 1,
+    currentDay: 1,
+    unlockedNiches: [niche],
+    activeEvents: [],
+    completedEventIds: [],
+  };
+}
+
+export interface GameActions {
+  initializeGame: (channelName: string, niche: ContentNiche) => void;
+  updateCurrency: (amount: number) => void;
+  updateSubscribers: (amount: number) => void;
+  addEquipment: (equipment: Equipment) => void;
+  removeEquipment: (equipmentId: string) => void;
+  advanceWeek: () => void;
+  setGamePaused: (paused: boolean) => void;
+  resetGame: () => void;
+}
+
+export type GameStore = GameState & GameActions;
+
+const initialState: GameState = {
+  player: createInitialPlayer('NewStreamer', ContentNiche.Gaming),
+  isPaused: false,
+  gameSpeed: 1,
+  lastSaveTime: Date.now(),
+};
+
+export const useGameStore = create<GameStore>((set) => ({
+  ...initialState,
+
+  initializeGame: (channelName: string, niche: ContentNiche) =>
+    set({
+      player: createInitialPlayer(channelName, niche),
+      isPaused: false,
+      gameSpeed: 1,
+      lastSaveTime: Date.now(),
+    }),
+
+  updateCurrency: (amount: number) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        money: Math.max(0, state.player.money + amount),
+      },
+    })),
+
+  updateSubscribers: (amount: number) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          subscribers: Math.max(0, state.player.channel.subscribers + amount),
+        },
+      },
+    })),
+
+  addEquipment: (equipment: Equipment) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          equipment: [...state.player.channel.equipment, equipment],
+        },
+      },
+    })),
+
+  removeEquipment: (equipmentId: string) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          equipment: state.player.channel.equipment.filter(
+            (e) => e.id !== equipmentId
+          ),
+        },
+      },
+    })),
+
+  advanceWeek: () =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        currentWeek: state.player.currentWeek + 1,
+        currentDay: 1,
+      },
+    })),
+
+  setGamePaused: (paused: boolean) =>
+    set({ isPaused: paused }),
+
+  resetGame: () =>
+    set({
+      ...initialState,
+      player: createInitialPlayer('NewStreamer', ContentNiche.Gaming),
+      lastSaveTime: Date.now(),
+    }),
+}));
