@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   ContentNiche,
   Equipment,
+  Staff,
   GameState,
   Player,
   Channel,
@@ -78,6 +79,8 @@ export interface GameActions {
   updateSubscribers: (amount: number) => void;
   addEquipment: (equipment: Equipment) => void;
   removeEquipment: (equipmentId: string) => void;
+  hireStaff: (staff: Staff) => void;
+  fireStaff: (staffId: string) => void;
   advanceWeek: () => void;
   setGamePaused: (paused: boolean) => void;
   resetGame: () => void;
@@ -142,6 +145,31 @@ export const useGameStore = create<GameStore>((set) => ({
           equipment: state.player.channel.equipment.filter(
             (e) => e.id !== equipmentId
           ),
+        },
+      },
+    })),
+
+  hireStaff: (staff: Staff) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          staff: [
+            ...state.player.channel.staff,
+            { ...staff, hiredAt: Date.now() },
+          ],
+        },
+      },
+    })),
+
+  fireStaff: (staffId: string) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          staff: state.player.channel.staff.filter((s) => s.id !== staffId),
         },
       },
     })),
