@@ -6,6 +6,7 @@ import StreamingRoom from './StreamingRoom';
 import StatsOverlay from './StatsOverlay';
 import EquipmentShop from './EquipmentShop';
 import StaffPanel from './StaffPanel';
+import WeekPhaseIndicator from './WeekPhaseIndicator';
 
 interface GameLayoutProps {
   onReturnToMenu: () => void;
@@ -62,6 +63,8 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
 
         <aside className="w-64 bg-zinc-800/50 border-l border-zinc-700 p-4 overflow-y-auto shrink-0">
           <div className="space-y-4">
+            <WeekPhaseIndicator />
+
             <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
               <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                 Quick Actions
@@ -88,7 +91,7 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
 
       <footer className="w-full bg-zinc-800 border-t border-zinc-700 px-6 py-2 shrink-0">
         <div className="flex items-center justify-between text-xs text-zinc-500">
-          <span>Day {player.currentDay} of Week {player.currentWeek}</span>
+          <span>Week {player.currentWeek} · {player.currentPhase.charAt(0).toUpperCase() + player.currentPhase.slice(1)} Phase</span>
           <span>Press SPACE to pause</span>
           <span>Streamer Empire v0.1</span>
         </div>

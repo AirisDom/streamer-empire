@@ -4,6 +4,7 @@ import {
   Equipment,
   Staff,
   GameState,
+  GamePhase,
   Player,
   Channel,
   Analytics,
@@ -68,6 +69,7 @@ function createInitialPlayer(
     channel: createInitialChannel(channelName, niche),
     currentWeek: 1,
     currentDay: 1,
+    currentPhase: GamePhase.Planning,
     unlockedNiches: [niche],
     activeEvents: [],
     completedEventIds: [],
@@ -83,6 +85,7 @@ export interface GameActions {
   hireStaff: (staff: Staff) => void;
   fireStaff: (staffId: string) => void;
   advanceWeek: () => void;
+  advancePhase: () => void;
   setGamePaused: (paused: boolean) => void;
   resetGame: () => void;
   processWeeklyPayroll: () => number;
@@ -183,8 +186,33 @@ export const useGameStore = create<GameStore>((set) => ({
         ...state.player,
         currentWeek: state.player.currentWeek + 1,
         currentDay: 1,
+        currentPhase: GamePhase.Planning,
       },
     })),
+
+  advancePhase: () =>
+    set((state) => {
+      const phaseOrder = [GamePhase.Planning, GamePhase.Streaming, GamePhase.Review];
+      const currentIndex = phaseOrder.indexOf(state.player.currentPhase);
+      const isLastPhase = currentIndex === phaseOrder.length - 1;
+
+      if (isLastPhase) {
+        return {
+          player: {
+            ...state.player,
+            currentWeek: state.player.currentWeek + 1,
+            currentPhase: GamePhase.Planning,
+          },
+        };
+      }
+
+      return {
+        player: {
+          ...state.player,
+          currentPhase: phaseOrder[currentIndex + 1],
+        },
+      };
+    }),
 
   setGamePaused: (paused: boolean) =>
     set({ isPaused: paused }),

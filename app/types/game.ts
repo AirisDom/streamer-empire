@@ -45,6 +45,12 @@ export enum EventSeverity {
   Major = 'major',
 }
 
+export enum GamePhase {
+  Planning = 'planning',
+  Streaming = 'streaming',
+  Review = 'review',
+}
+
 export interface Equipment {
   id: string;
   name: string;
@@ -178,6 +184,7 @@ export interface Player {
   channel: Channel;
   currentWeek: number;
   currentDay: number;
+  currentPhase: GamePhase;
   unlockedNiches: ContentNiche[];
   activeEvents: GameEvent[];
   completedEventIds: string[];
