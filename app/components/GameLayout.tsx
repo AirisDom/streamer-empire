@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, GameStore } from '../store/gameStore';
 import StreamingRoom from './StreamingRoom';
 import StatsOverlay from './StatsOverlay';
 import EquipmentShop from './EquipmentShop';
+import StaffPanel from './StaffPanel';
 
 interface GameLayoutProps {
   onReturnToMenu: () => void;
@@ -12,8 +13,9 @@ interface GameLayoutProps {
 
 export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
   const [showShop, setShowShop] = useState(false);
-  const player = useGameStore((state) => state.player);
-  const resetGame = useGameStore((state) => state.resetGame);
+  const [showStaffPanel, setShowStaffPanel] = useState(false);
+  const player = useGameStore((state: GameStore) => state.player);
+  const resetGame = useGameStore((state: GameStore) => state.resetGame);
 
   const handleReturnToMenu = () => {
     resetGame();
@@ -68,7 +70,7 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
                 <ActionButton label="Go Live" disabled />
                 <ActionButton label="Schedule" disabled />
                 <ActionButton label="Shop" onClick={() => setShowShop(true)} />
-                <ActionButton label="Hire Staff" disabled />
+                <ActionButton label="Staff" onClick={() => setShowStaffPanel(true)} />
               </div>
             </div>
 
@@ -93,6 +95,7 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
       </footer>
 
       {showShop && <EquipmentShop onClose={() => setShowShop(false)} />}
+      {showStaffPanel && <StaffPanel onClose={() => setShowStaffPanel(false)} />}
     </div>
   );
 }

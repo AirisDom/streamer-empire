@@ -8,6 +8,7 @@ import {
   Channel,
   Analytics,
 } from '../types';
+import { calculateTotalSalaries } from '../data/staff';
 
 function createInitialAnalytics(): Analytics {
   return {
@@ -84,6 +85,8 @@ export interface GameActions {
   advanceWeek: () => void;
   setGamePaused: (paused: boolean) => void;
   resetGame: () => void;
+  processWeeklyPayroll: () => number;
+  getWeeklyPayroll: () => number;
 }
 
 export type GameStore = GameState & GameActions;
@@ -192,4 +195,28 @@ export const useGameStore = create<GameStore>((set) => ({
       player: createInitialPlayer('NewStreamer', ContentNiche.Gaming),
       lastSaveTime: Date.now(),
     }),
+
+  getWeeklyPayroll: (): number => 0,
+
+  processWeeklyPayroll: (): number => 0,
 }));
+
+useGameStore.setState({
+  getWeeklyPayroll: () => {
+    const state = useGameStore.getState();
+    return calculateTotalSalaries(state.player.channel.staff);
+  },
+  processWeeklyPayroll: () => {
+    const state = useGameStore.getState();
+    const payroll = calculateTotalSalaries(state.player.channel.staff);
+    if (payroll > 0) {
+      useGameStore.setState({
+        player: {
+          ...state.player,
+          money: Math.max(0, state.player.money - payroll),
+        },
+      });
+    }
+    return payroll;
+  },
+});

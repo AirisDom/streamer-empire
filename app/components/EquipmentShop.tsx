@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, GameStore } from '../store/gameStore';
 import { Equipment, EquipmentCategory, EquipmentTier } from '../types';
 import {
   EQUIPMENT_CATALOG,
@@ -41,11 +41,11 @@ export default function EquipmentShop({ onClose }: EquipmentShopProps) {
   const [activeCategory, setActiveCategory] = useState<EquipmentCategory>(EquipmentCategory.Camera);
   const [purchaseMessage, setPurchaseMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
-  const player = useGameStore((state) => state.player);
-  const updateCurrency = useGameStore((state) => state.updateCurrency);
-  const addEquipment = useGameStore((state) => state.addEquipment);
+  const player = useGameStore((state: GameStore) => state.player);
+  const updateCurrency = useGameStore((state: GameStore) => state.updateCurrency);
+  const addEquipment = useGameStore((state: GameStore) => state.addEquipment);
 
-  const ownedIds = new Set(player.channel.equipment.map((e) => e.id));
+  const ownedIds = new Set(player.channel.equipment.map((e: Equipment) => e.id));
   const categoryItems = getEquipmentByCategory(activeCategory);
 
   const getItemStatus = (item: Equipment): 'owned' | 'available' | 'locked' | 'too_expensive' => {
@@ -109,7 +109,7 @@ export default function EquipmentShop({ onClose }: EquipmentShopProps) {
               {categories.map((category) => {
                 const info = CATEGORY_INFO[category];
                 const isActive = category === activeCategory;
-                const ownedCount = player.channel.equipment.filter((e) => e.category === category).length;
+                const ownedCount = player.channel.equipment.filter((e: Equipment) => e.category === category).length;
                 const totalCount = getEquipmentByCategory(category).length;
 
                 return (

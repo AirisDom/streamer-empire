@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { Application, Container, Graphics } from 'pixi.js';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, GameStore } from '../store/gameStore';
 import { Equipment, EquipmentCategory, EquipmentTier } from '../types';
 
 interface StreamingRoomProps {
@@ -628,7 +628,7 @@ export default function StreamingRoom({ width = 800, height = 500 }: StreamingRo
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const visualsRef = useRef<EquipmentVisual[]>([]);
-  const equipment = useGameStore((state) => state.player.channel.equipment);
+  const equipment = useGameStore((state: GameStore) => state.player.channel.equipment);
 
   const createRoom = useCallback((app: Application, currentEquipment: Equipment[]) => {
     app.stage.removeChildren();

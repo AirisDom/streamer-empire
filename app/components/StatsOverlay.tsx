@@ -1,9 +1,9 @@
 'use client';
 
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, GameStore } from '../store/gameStore';
 
 export default function StatsOverlay() {
-  const player = useGameStore((state) => state.player);
+  const player = useGameStore((state: GameStore) => state.player);
 
   return (
     <div className="flex flex-col gap-4">

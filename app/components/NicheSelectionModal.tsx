@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ContentNiche } from '../types';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, GameStore } from '../store/gameStore';
 
 interface NicheSelectionModalProps {
   onClose: () => void;
@@ -51,7 +51,7 @@ const nicheOptions: NicheOption[] = [
 export default function NicheSelectionModal({ onClose, onSelect }: NicheSelectionModalProps) {
   const [selectedNiche, setSelectedNiche] = useState<ContentNiche | null>(null);
   const [channelName, setChannelName] = useState('');
-  const initializeGame = useGameStore((state) => state.initializeGame);
+  const initializeGame = useGameStore((state: GameStore) => state.initializeGame);
 
   const handleStartGame = () => {
     if (!selectedNiche || !channelName.trim()) return;
