@@ -8,6 +8,7 @@ import {
   Player,
   Channel,
   Analytics,
+  StreamScheduleSlot,
 } from '../types';
 import { calculateTotalSalaries } from '../data/staff';
 
@@ -90,6 +91,8 @@ export interface GameActions {
   resetGame: () => void;
   processWeeklyPayroll: () => number;
   getWeeklyPayroll: () => number;
+  setSchedule: (schedule: StreamScheduleSlot[]) => void;
+  clearSchedule: () => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -227,6 +230,28 @@ export const useGameStore = create<GameStore>((set) => ({
   getWeeklyPayroll: (): number => 0,
 
   processWeeklyPayroll: (): number => 0,
+
+  setSchedule: (schedule: StreamScheduleSlot[]) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          schedule,
+        },
+      },
+    })),
+
+  clearSchedule: () =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          schedule: [],
+        },
+      },
+    })),
 }));
 
 useGameStore.setState({
