@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGameStore, GameStore } from '../store/gameStore';
-import { ContentNiche } from '../types';
+import { ContentNiche, ChatMessage } from '../types';
+import { createChatGenerator } from '../data/chat';
+import PixiChatPanel from './PixiChatPanel';
 
 interface LiveStreamViewProps {
   onEndStream: () => void;
@@ -33,6 +35,16 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
 
   const [elapsed, setElapsed] = useState(0);
   const [currentViewers, setCurrentViewers] = useState(0);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [messagesPerMinute, setMessagesPerMinute] = useState(0);
+
+  const viewerCountRef = useRef(0);
+  const messageTimestampsRef = useRef<number[]>([]);
+  const chatGeneratorRef = useRef<ReturnType<typeof createChatGenerator> | null>(null);
+
+  useEffect(() => {
+    viewerCountRef.current = currentViewers;
+  }, [currentViewers]);
 
   useEffect(() => {
     if (!activeStream) return;
@@ -43,13 +55,54 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
 
       const baseViewers = 10 + Math.floor(Math.random() * 20);
       const timeBonus = Math.min(Math.floor(elapsedMs / 10000), 50);
-      setCurrentViewers(baseViewers + timeBonus + Math.floor(Math.random() * 10));
+      const newViewerCount = baseViewers + timeBonus + Math.floor(Math.random() * 10);
+      setCurrentViewers(newViewerCount);
     }, 1000);
 
     return () => clearInterval(interval);
   }, [activeStream]);
 
+  useEffect(() => {
+    if (!activeStream) return;
+
+    const handleNewMessage = (message: ChatMessage) => {
+      setChatMessages((prev) => [...prev.slice(-50), message]);
+      messageTimestampsRef.current.push(Date.now());
+    };
+
+    const generator = createChatGenerator({
+      niche: activeStream.niche,
+      channelName,
+      getViewerCount: () => viewerCountRef.current,
+      onMessage: handleNewMessage,
+    });
+
+    chatGeneratorRef.current = generator;
+    generator.start();
+
+    return () => {
+      generator.stop();
+      chatGeneratorRef.current = null;
+    };
+  }, [activeStream, channelName]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const oneMinuteAgo = now - 60000;
+      messageTimestampsRef.current = messageTimestampsRef.current.filter(
+        (ts) => ts > oneMinuteAgo
+      );
+      setMessagesPerMinute(messageTimestampsRef.current.length);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const handleEndStream = useCallback(() => {
+    if (chatGeneratorRef.current) {
+      chatGeneratorRef.current.stop();
+    }
     endStream();
     onEndStream();
   }, [endStream, onEndStream]);
@@ -61,109 +114,118 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const nicheInfo = NICHE_INFO[activeStream.niche];
 
   return (
-    <div className="bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden">
-      <div className="bg-gradient-to-r from-red-600 to-pink-600 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-white rounded-full animate-pulse" />
-            <span className="text-white font-bold text-sm">LIVE</span>
-          </span>
-          <span className="text-white/80 text-sm">|</span>
-          <span className="text-white font-medium text-sm">{channelName}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-white/80 text-sm flex items-center gap-1">
-            <span>{nicheInfo.icon}</span>
-            {nicheInfo.name}
-          </span>
-        </div>
-      </div>
-
-      <div className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="bg-zinc-900 rounded-lg px-4 py-2 flex items-center gap-3">
-            <svg
-              className="w-5 h-5 text-zinc-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <div>
-              <span className="text-xs text-zinc-500 block">Duration</span>
-              <span className="text-lg font-mono font-bold text-white">
-                {formatDuration(elapsed)}
-              </span>
-            </div>
+    <div className="space-y-4">
+      <div className="bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden">
+        <div className="bg-gradient-to-r from-red-600 to-pink-600 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-2">
+              <span className="w-3 h-3 bg-white rounded-full animate-pulse" />
+              <span className="text-white font-bold text-sm">LIVE</span>
+            </span>
+            <span className="text-white/80 text-sm">|</span>
+            <span className="text-white font-medium text-sm">{channelName}</span>
           </div>
-
-          <div className="bg-zinc-900 rounded-lg px-4 py-2 flex items-center gap-3">
-            <svg
-              className="w-5 h-5 text-zinc-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg>
-            <div>
-              <span className="text-xs text-zinc-500 block">Viewers</span>
-              <span className="text-lg font-mono font-bold text-purple-400">
-                {currentViewers}
-              </span>
-            </div>
+          <div className="flex items-center gap-3">
+            <span className="text-white/80 text-sm flex items-center gap-1">
+              <span>{nicheInfo.icon}</span>
+              {nicheInfo.name}
+            </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <StatBox label="Peak Viewers" value={activeStream.peakViewers.toString()} />
-          <StatBox label="New Subs" value={activeStream.newSubscribers.toString()} />
-          <StatBox label="Donations" value={`$${activeStream.donations}`} />
-        </div>
+        <div className="p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="bg-zinc-900 rounded-lg px-4 py-2 flex items-center gap-3">
+              <svg
+                className="w-5 h-5 text-zinc-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div>
+                <span className="text-xs text-zinc-500 block">Duration</span>
+                <span className="text-lg font-mono font-bold text-white">
+                  {formatDuration(elapsed)}
+                </span>
+              </div>
+            </div>
 
-        <button
-          onClick={handleEndStream}
-          className="w-full px-4 py-3 text-sm font-bold text-white bg-zinc-700 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
-        >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+            <div className="bg-zinc-900 rounded-lg px-4 py-2 flex items-center gap-3">
+              <svg
+                className="w-5 h-5 text-zinc-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                />
+              </svg>
+              <div>
+                <span className="text-xs text-zinc-500 block">Viewers</span>
+                <span className="text-lg font-mono font-bold text-purple-400">
+                  {currentViewers}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <StatBox label="Peak Viewers" value={activeStream.peakViewers.toString()} />
+            <StatBox label="New Subs" value={activeStream.newSubscribers.toString()} />
+            <StatBox label="Donations" value={`$${activeStream.donations}`} />
+          </div>
+
+          <button
+            onClick={handleEndStream}
+            className="w-full px-4 py-3 text-sm font-bold text-white bg-zinc-700 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
-            />
-          </svg>
-          End Stream
-        </button>
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+              />
+            </svg>
+            End Stream
+          </button>
+        </div>
       </div>
+
+      <PixiChatPanel
+        width={256}
+        height={320}
+        messages={chatMessages}
+        messagesPerMinute={messagesPerMinute}
+      />
     </div>
   );
 }
