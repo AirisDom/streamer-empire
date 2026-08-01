@@ -9,6 +9,7 @@ import EquipmentShop from './EquipmentShop';
 import StaffPanel from './StaffPanel';
 import WeekPhaseIndicator from './WeekPhaseIndicator';
 import WeeklyPlanner from './WeeklyPlanner';
+import StreamingPhaseManager from './StreamingPhaseManager';
 
 interface GameLayoutProps {
   onReturnToMenu: () => void;
@@ -22,6 +23,8 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
   const resetGame = useGameStore((state: GameStore) => state.resetGame);
 
   const isPlanning = player.currentPhase === GamePhase.Planning;
+  const isStreaming = player.currentPhase === GamePhase.Streaming;
+  const isLive = player.channel.activeStream !== undefined;
 
   const handleReturnToMenu = () => {
     resetGame();
@@ -70,28 +73,31 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
           <div className="space-y-4">
             <WeekPhaseIndicator />
 
-            <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
-              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Quick Actions
-              </h3>
-              <div className="space-y-2">
-                <ActionButton label="Go Live" disabled />
-                <ActionButton
-                  label="Schedule"
-                  onClick={() => setShowPlanner(true)}
-                  disabled={!isPlanning}
-                />
-                <ActionButton label="Shop" onClick={() => setShowShop(true)} />
-                <ActionButton label="Staff" onClick={() => setShowStaffPanel(true)} />
+            {isStreaming && <StreamingPhaseManager />}
+
+            {!isLive && (
+              <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                  Quick Actions
+                </h3>
+                <div className="space-y-2">
+                  <ActionButton
+                    label="Schedule"
+                    onClick={() => setShowPlanner(true)}
+                    disabled={!isPlanning}
+                  />
+                  <ActionButton label="Shop" onClick={() => setShowShop(true)} />
+                  <ActionButton label="Staff" onClick={() => setShowStaffPanel(true)} />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
               <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                 Activity
               </h3>
               <div className="text-sm text-zinc-500 italic">
-                No recent activity
+                {isLive ? 'Streaming live...' : 'No recent activity'}
               </div>
             </div>
           </div>

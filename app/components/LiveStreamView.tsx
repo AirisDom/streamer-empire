@@ -1,0 +1,183 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useGameStore, GameStore } from '../store/gameStore';
+import { ContentNiche } from '../types';
+
+interface LiveStreamViewProps {
+  onEndStream: () => void;
+}
+
+const NICHE_INFO: Record<ContentNiche, { name: string; icon: string }> = {
+  [ContentNiche.Gaming]: { name: 'Gaming', icon: '🎮' },
+  [ContentNiche.Cooking]: { name: 'Cooking', icon: '🍳' },
+  [ContentNiche.Music]: { name: 'Music', icon: '🎵' },
+  [ContentNiche.IRL]: { name: 'IRL', icon: '📹' },
+};
+
+function formatDuration(seconds: number): string {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hrs > 0) {
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
+  const activeStream = useGameStore((state: GameStore) => state.player.channel.activeStream);
+  const channelName = useGameStore((state: GameStore) => state.player.channel.name);
+  const endStream = useGameStore((state: GameStore) => state.endStream);
+
+  const [elapsed, setElapsed] = useState(0);
+  const [currentViewers, setCurrentViewers] = useState(0);
+
+  useEffect(() => {
+    if (!activeStream) return;
+
+    const interval = setInterval(() => {
+      const elapsedMs = Date.now() - activeStream.startTime;
+      setElapsed(Math.floor(elapsedMs / 1000));
+
+      const baseViewers = 10 + Math.floor(Math.random() * 20);
+      const timeBonus = Math.min(Math.floor(elapsedMs / 10000), 50);
+      setCurrentViewers(baseViewers + timeBonus + Math.floor(Math.random() * 10));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [activeStream]);
+
+  const handleEndStream = useCallback(() => {
+    endStream();
+    onEndStream();
+  }, [endStream, onEndStream]);
+
+  if (!activeStream) {
+    return null;
+  }
+
+  const nicheInfo = NICHE_INFO[activeStream.niche];
+
+  return (
+    <div className="bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden">
+      <div className="bg-gradient-to-r from-red-600 to-pink-600 px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-2">
+            <span className="w-3 h-3 bg-white rounded-full animate-pulse" />
+            <span className="text-white font-bold text-sm">LIVE</span>
+          </span>
+          <span className="text-white/80 text-sm">|</span>
+          <span className="text-white font-medium text-sm">{channelName}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-white/80 text-sm flex items-center gap-1">
+            <span>{nicheInfo.icon}</span>
+            {nicheInfo.name}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="bg-zinc-900 rounded-lg px-4 py-2 flex items-center gap-3">
+            <svg
+              className="w-5 h-5 text-zinc-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <div>
+              <span className="text-xs text-zinc-500 block">Duration</span>
+              <span className="text-lg font-mono font-bold text-white">
+                {formatDuration(elapsed)}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900 rounded-lg px-4 py-2 flex items-center gap-3">
+            <svg
+              className="w-5 h-5 text-zinc-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg>
+            <div>
+              <span className="text-xs text-zinc-500 block">Viewers</span>
+              <span className="text-lg font-mono font-bold text-purple-400">
+                {currentViewers}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <StatBox label="Peak Viewers" value={activeStream.peakViewers.toString()} />
+          <StatBox label="New Subs" value={activeStream.newSubscribers.toString()} />
+          <StatBox label="Donations" value={`$${activeStream.donations}`} />
+        </div>
+
+        <button
+          onClick={handleEndStream}
+          className="w-full px-4 py-3 text-sm font-bold text-white bg-zinc-700 rounded-lg hover:bg-red-600 transition-colors flex items-center justify-center gap-2"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+            />
+          </svg>
+          End Stream
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface StatBoxProps {
+  label: string;
+  value: string;
+}
+
+function StatBox({ label, value }: StatBoxProps) {
+  return (
+    <div className="bg-zinc-900 rounded-lg px-3 py-2">
+      <span className="text-xs text-zinc-500 block">{label}</span>
+      <span className="text-sm font-medium text-zinc-300">{value}</span>
+    </div>
+  );
+}

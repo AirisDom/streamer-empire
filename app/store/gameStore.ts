@@ -9,6 +9,7 @@ import {
   Channel,
   Analytics,
   StreamScheduleSlot,
+  StreamSession,
 } from '../types';
 import { calculateTotalSalaries } from '../data/staff';
 
@@ -93,6 +94,9 @@ export interface GameActions {
   getWeeklyPayroll: () => number;
   setSchedule: (schedule: StreamScheduleSlot[]) => void;
   clearSchedule: () => void;
+  startStream: (slot: StreamScheduleSlot) => void;
+  endStream: () => void;
+  updateStreamDuration: (elapsed: number) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -252,6 +256,72 @@ export const useGameStore = create<GameStore>((set) => ({
         },
       },
     })),
+
+  startStream: (slot: StreamScheduleSlot) =>
+    set((state) => {
+      const session: StreamSession = {
+        id: crypto.randomUUID(),
+        title: `${slot.niche} Stream`,
+        niche: slot.niche,
+        startTime: Date.now(),
+        peakViewers: 0,
+        averageViewers: 0,
+        newSubscribers: 0,
+        donations: 0,
+        chatMessages: [],
+        events: [],
+      };
+      return {
+        player: {
+          ...state.player,
+          channel: {
+            ...state.player.channel,
+            activeStream: session,
+          },
+        },
+      };
+    }),
+
+  endStream: () =>
+    set((state) => {
+      const activeStream = state.player.channel.activeStream;
+      if (!activeStream) return state;
+
+      const completedStream: StreamSession = {
+        ...activeStream,
+        endTime: Date.now(),
+      };
+
+      return {
+        player: {
+          ...state.player,
+          channel: {
+            ...state.player.channel,
+            activeStream: undefined,
+            streamHistory: [...state.player.channel.streamHistory, completedStream],
+          },
+        },
+      };
+    }),
+
+  updateStreamDuration: (elapsed: number) =>
+    set((state) => {
+      const activeStream = state.player.channel.activeStream;
+      if (!activeStream) return state;
+
+      return {
+        player: {
+          ...state.player,
+          channel: {
+            ...state.player.channel,
+            activeStream: {
+              ...activeStream,
+              startTime: Date.now() - elapsed,
+            },
+          },
+        },
+      };
+    }),
 }));
 
 useGameStore.setState({
