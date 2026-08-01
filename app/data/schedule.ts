@@ -1,4 +1,5 @@
-import { ContentNiche } from '../types';
+import { ContentNiche, Equipment } from '../types';
+import { calculateTotalQualityBonus } from './equipment';
 
 export interface TimeSlot {
   dayOfWeek: number;
@@ -10,6 +11,33 @@ export interface SlotPopularity {
   baseViewership: number;
   nicheMultipliers: Record<ContentNiche, number>;
 }
+
+export type TimeOfDay = 'morning' | 'midday' | 'afternoon' | 'evening' | 'night';
+
+export interface TimeSlotInfo {
+  hour: number;
+  label: string;
+  timeOfDay: TimeOfDay;
+  isPrimeTime: boolean;
+  baseMultiplier: number;
+}
+
+export const TIME_SLOT_INFO: Record<number, TimeSlotInfo> = {
+  9: { hour: 9, label: 'Morning (9 AM)', timeOfDay: 'morning', isPrimeTime: false, baseMultiplier: 0.6 },
+  12: { hour: 12, label: 'Midday (12 PM)', timeOfDay: 'midday', isPrimeTime: false, baseMultiplier: 0.8 },
+  15: { hour: 15, label: 'Afternoon (3 PM)', timeOfDay: 'afternoon', isPrimeTime: true, baseMultiplier: 1.0 },
+  18: { hour: 18, label: 'Evening (6 PM)', timeOfDay: 'evening', isPrimeTime: true, baseMultiplier: 1.3 },
+  21: { hour: 21, label: 'Night (9 PM)', timeOfDay: 'night', isPrimeTime: true, baseMultiplier: 1.5 },
+};
+
+export const NICHE_PEAK_TIMES: Record<ContentNiche, TimeOfDay[]> = {
+  [ContentNiche.Gaming]: ['evening', 'night'],
+  [ContentNiche.Cooking]: ['midday', 'afternoon'],
+  [ContentNiche.Music]: ['evening', 'night'],
+  [ContentNiche.IRL]: ['afternoon', 'evening'],
+};
+
+export const NICHE_PEAK_BONUS = 0.4;
 
 export const DAYS_OF_WEEK = [
   'Monday',
@@ -101,3 +129,91 @@ export function getViewershipLevel(viewership: number): 'low' | 'medium' | 'high
 export const MIN_SLOTS_PER_WEEK = 3;
 export const MAX_SLOTS_PER_WEEK = 5;
 export const DEFAULT_STREAM_DURATION = 2;
+
+export function getTimeSlotInfo(hour: number): TimeSlotInfo {
+  return TIME_SLOT_INFO[hour] || TIME_SLOT_INFO[18];
+}
+
+export function isNichePeakTime(niche: ContentNiche, hour: number): boolean {
+  const slotInfo = getTimeSlotInfo(hour);
+  const peakTimes = NICHE_PEAK_TIMES[niche];
+  return peakTimes.includes(slotInfo.timeOfDay);
+}
+
+export function getTimeSlotMultiplier(hour: number, niche: ContentNiche): number {
+  const slotInfo = getTimeSlotInfo(hour);
+  let multiplier = slotInfo.baseMultiplier;
+
+  if (isNichePeakTime(niche, hour)) {
+    multiplier += NICHE_PEAK_BONUS;
+  }
+
+  return multiplier;
+}
+
+export function getEquipmentQualityMultiplier(equipment: Equipment[]): number {
+  const totalQuality = calculateTotalQualityBonus(equipment);
+  return 1 + (totalQuality / 100);
+}
+
+export interface ProjectedViewershipParams {
+  dayOfWeek: number;
+  hour: number;
+  niche: ContentNiche;
+  equipment: Equipment[];
+  subscriberCount?: number;
+}
+
+export interface ProjectedViewershipResult {
+  baseViewers: number;
+  timeSlotMultiplier: number;
+  nicheMultiplier: number;
+  equipmentMultiplier: number;
+  isNichePeakTime: boolean;
+  isPrimeTime: boolean;
+  projectedViewers: number;
+}
+
+export function calculateProjectedViewership(params: ProjectedViewershipParams): ProjectedViewershipResult {
+  const { dayOfWeek, hour, niche, equipment, subscriberCount = 0 } = params;
+
+  const popularity = getSlotPopularity(dayOfWeek, hour);
+  const slotInfo = getTimeSlotInfo(hour);
+
+  const baseViewers = popularity.baseViewership;
+  const timeSlotMultiplier = slotInfo.baseMultiplier;
+  const nicheMultiplier = popularity.nicheMultipliers[niche];
+  const equipmentMultiplier = getEquipmentQualityMultiplier(equipment);
+  const isPeakTime = isNichePeakTime(niche, hour);
+
+  const peakBonus = isPeakTime ? 1 + NICHE_PEAK_BONUS : 1;
+  const subscriberBonus = 1 + Math.min(subscriberCount / 1000, 2);
+
+  const projectedViewers = Math.round(
+    baseViewers *
+    timeSlotMultiplier *
+    nicheMultiplier *
+    equipmentMultiplier *
+    peakBonus *
+    subscriberBonus
+  );
+
+  return {
+    baseViewers,
+    timeSlotMultiplier,
+    nicheMultiplier,
+    equipmentMultiplier,
+    isNichePeakTime: isPeakTime,
+    isPrimeTime: slotInfo.isPrimeTime,
+    projectedViewers,
+  };
+}
+
+export function getSimpleProjectedViewers(
+  dayOfWeek: number,
+  hour: number,
+  niche: ContentNiche,
+  equipment: Equipment[]
+): number {
+  return calculateProjectedViewership({ dayOfWeek, hour, niche, equipment }).projectedViewers;
+}
