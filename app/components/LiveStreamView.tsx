@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useGameStore, GameStore } from '../store/gameStore';
-import { ContentNiche, ChatMessage } from '../types';
+import { ContentNiche, ChatMessage, StaffRole } from '../types';
 import { createChatGenerator } from '../data/chat';
+import { calculateViewerRetentionModifier } from '../data/moderation';
 import PixiChatPanel from './PixiChatPanel';
+import ChatModerationPanel from './ChatModerationPanel';
 
 interface LiveStreamViewProps {
   onEndStream: () => void;
@@ -31,20 +33,33 @@ function formatDuration(seconds: number): string {
 export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const activeStream = useGameStore((state: GameStore) => state.player.channel.activeStream);
   const channelName = useGameStore((state: GameStore) => state.player.channel.name);
+  const staff = useGameStore((state: GameStore) => state.player.channel.staff);
   const endStream = useGameStore((state: GameStore) => state.endStream);
 
   const [elapsed, setElapsed] = useState(0);
   const [currentViewers, setCurrentViewers] = useState(0);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [messagesPerMinute, setMessagesPerMinute] = useState(0);
+  const [chatHealth, setChatHealth] = useState(100);
 
   const viewerCountRef = useRef(0);
+  const chatHealthRef = useRef(100);
   const messageTimestampsRef = useRef<number[]>([]);
   const chatGeneratorRef = useRef<ReturnType<typeof createChatGenerator> | null>(null);
+
+  const moderators = staff.filter(s => s.role === StaffRole.Moderator);
 
   useEffect(() => {
     viewerCountRef.current = currentViewers;
   }, [currentViewers]);
+
+  useEffect(() => {
+    chatHealthRef.current = chatHealth;
+  }, [chatHealth]);
+
+  const handleChatHealthChange = useCallback((health: number) => {
+    setChatHealth(health);
+  }, []);
 
   useEffect(() => {
     if (!activeStream) return;
@@ -55,7 +70,9 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
 
       const baseViewers = 10 + Math.floor(Math.random() * 20);
       const timeBonus = Math.min(Math.floor(elapsedMs / 10000), 50);
-      const newViewerCount = baseViewers + timeBonus + Math.floor(Math.random() * 10);
+      const retentionModifier = calculateViewerRetentionModifier(chatHealthRef.current);
+      const rawViewerCount = baseViewers + timeBonus + Math.floor(Math.random() * 10);
+      const newViewerCount = Math.floor(rawViewerCount * retentionModifier);
       setCurrentViewers(newViewerCount);
     }, 1000);
 
@@ -186,10 +203,15 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-4 gap-2 text-center">
             <StatBox label="Peak Viewers" value={activeStream.peakViewers.toString()} />
             <StatBox label="New Subs" value={activeStream.newSubscribers.toString()} />
             <StatBox label="Donations" value={`$${activeStream.donations}`} />
+            <StatBox
+              label="Chat Health"
+              value={`${Math.round(chatHealth)}%`}
+              color={chatHealth >= 70 ? 'text-green-400' : chatHealth >= 40 ? 'text-yellow-400' : 'text-red-400'}
+            />
           </div>
 
           <button
@@ -220,6 +242,12 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
         </div>
       </div>
 
+      <ChatModerationPanel
+        messages={chatMessages}
+        moderators={moderators}
+        onChatHealthChange={handleChatHealthChange}
+      />
+
       <PixiChatPanel
         width={256}
         height={320}
@@ -233,13 +261,14 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
 interface StatBoxProps {
   label: string;
   value: string;
+  color?: string;
 }
 
-function StatBox({ label, value }: StatBoxProps) {
+function StatBox({ label, value, color = 'text-zinc-300' }: StatBoxProps) {
   return (
     <div className="bg-zinc-900 rounded-lg px-3 py-2">
       <span className="text-xs text-zinc-500 block">{label}</span>
-      <span className="text-sm font-medium text-zinc-300">{value}</span>
+      <span className={`text-sm font-medium ${color}`}>{value}</span>
     </div>
   );
 }
