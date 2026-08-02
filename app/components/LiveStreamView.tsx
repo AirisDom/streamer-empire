@@ -5,8 +5,10 @@ import { useGameStore, GameStore } from '../store/gameStore';
 import { ContentNiche, ChatMessage, StaffRole } from '../types';
 import { createChatGenerator } from '../data/chat';
 import { calculateViewerRetentionModifier } from '../data/moderation';
+import { calculateSubscriberConversionRate } from '../data/hype';
 import PixiChatPanel from './PixiChatPanel';
 import ChatModerationPanel from './ChatModerationPanel';
+import HypeMeter from './HypeMeter';
 
 interface LiveStreamViewProps {
   onEndStream: () => void;
@@ -34,6 +36,8 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const activeStream = useGameStore((state: GameStore) => state.player.channel.activeStream);
   const channelName = useGameStore((state: GameStore) => state.player.channel.name);
   const staff = useGameStore((state: GameStore) => state.player.channel.staff);
+  const playerEnergy = useGameStore((state: GameStore) => state.player.energy);
+  const updateSubscribers = useGameStore((state: GameStore) => state.updateSubscribers);
   const endStream = useGameStore((state: GameStore) => state.endStream);
 
   const [elapsed, setElapsed] = useState(0);
@@ -41,11 +45,15 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [messagesPerMinute, setMessagesPerMinute] = useState(0);
   const [chatHealth, setChatHealth] = useState(100);
+  const [currentHype, setCurrentHype] = useState(20);
+  const [newSubsThisStream, setNewSubsThisStream] = useState(0);
 
   const viewerCountRef = useRef(0);
   const chatHealthRef = useRef(100);
+  const hypeRef = useRef(20);
   const messageTimestampsRef = useRef<number[]>([]);
   const chatGeneratorRef = useRef<ReturnType<typeof createChatGenerator> | null>(null);
+  const lastSubCheckRef = useRef<number | null>(null);
 
   const moderators = staff.filter(s => s.role === StaffRole.Moderator);
 
@@ -57,8 +65,22 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
     chatHealthRef.current = chatHealth;
   }, [chatHealth]);
 
+  useEffect(() => {
+    hypeRef.current = currentHype;
+  }, [currentHype]);
+
   const handleChatHealthChange = useCallback((health: number) => {
     setChatHealth(health);
+  }, []);
+
+  const handleHypeChange = useCallback((hype: number) => {
+    setCurrentHype(hype);
+  }, []);
+
+  const handleEnergyUsed = useCallback(() => {
+    if (chatGeneratorRef.current) {
+      chatGeneratorRef.current.triggerHypeEvent();
+    }
   }, []);
 
   useEffect(() => {
@@ -71,13 +93,27 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
       const baseViewers = 10 + Math.floor(Math.random() * 20);
       const timeBonus = Math.min(Math.floor(elapsedMs / 10000), 50);
       const retentionModifier = calculateViewerRetentionModifier(chatHealthRef.current);
-      const rawViewerCount = baseViewers + timeBonus + Math.floor(Math.random() * 10);
+      const hypeBonus = Math.floor(hypeRef.current / 10);
+      const rawViewerCount = baseViewers + timeBonus + hypeBonus + Math.floor(Math.random() * 10);
       const newViewerCount = Math.floor(rawViewerCount * retentionModifier);
       setCurrentViewers(newViewerCount);
+
+      const now = Date.now();
+      const lastSubCheck = lastSubCheckRef.current ?? now;
+      if (now - lastSubCheck >= 5000) {
+        lastSubCheckRef.current = now;
+        const conversionRate = calculateSubscriberConversionRate(hypeRef.current);
+        const viewerPool = Math.max(1, newViewerCount);
+        if (Math.random() < conversionRate * (viewerPool / 100)) {
+          const newSubs = 1 + Math.floor(Math.random() * Math.ceil(hypeRef.current / 50));
+          updateSubscribers(newSubs);
+          setNewSubsThisStream((prev) => prev + newSubs);
+        }
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeStream]);
+  }, [activeStream, updateSubscribers]);
 
   useEffect(() => {
     if (!activeStream) return;
@@ -204,8 +240,12 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
           </div>
 
           <div className="grid grid-cols-4 gap-2 text-center">
-            <StatBox label="Peak Viewers" value={activeStream.peakViewers.toString()} />
-            <StatBox label="New Subs" value={activeStream.newSubscribers.toString()} />
+            <StatBox
+              label="Hype"
+              value={`${Math.round(currentHype)}%`}
+              color={currentHype >= 75 ? 'text-pink-400' : currentHype >= 45 ? 'text-orange-400' : 'text-zinc-400'}
+            />
+            <StatBox label="New Subs" value={newSubsThisStream.toString()} />
             <StatBox label="Donations" value={`$${activeStream.donations}`} />
             <StatBox
               label="Chat Health"
@@ -241,6 +281,13 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
           </button>
         </div>
       </div>
+
+      <HypeMeter
+        messages={chatMessages}
+        onHypeChange={handleHypeChange}
+        playerEnergy={playerEnergy}
+        onEnergyUsed={handleEnergyUsed}
+      />
 
       <ChatModerationPanel
         messages={chatMessages}
