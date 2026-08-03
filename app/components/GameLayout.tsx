@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGameStore, GameStore } from '../store/gameStore';
 import { GamePhase } from '../types';
 import StreamingRoom from './StreamingRoom';
@@ -11,6 +11,8 @@ import WeekPhaseIndicator from './WeekPhaseIndicator';
 import WeeklyPlanner from './WeeklyPlanner';
 import StreamingPhaseManager from './StreamingPhaseManager';
 import AnalyticsDashboard from './AnalyticsDashboard';
+import MilestoneCelebration from './MilestoneCelebration';
+import { SubscriberMilestone, checkNewMilestone } from '../data/milestones';
 
 interface GameLayoutProps {
   onReturnToMenu: () => void;
@@ -20,14 +22,40 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
   const [showShop, setShowShop] = useState(false);
   const [showStaffPanel, setShowStaffPanel] = useState(false);
   const [showPlanner, setShowPlanner] = useState(false);
+  const [celebratingMilestone, setCelebratingMilestone] = useState<SubscriberMilestone | null>(null);
+  const previousSubsRef = useRef<number>(0);
+
   const player = useGameStore((state: GameStore) => state.player);
   const resetGame = useGameStore((state: GameStore) => state.resetGame);
   const advancePhase = useGameStore((state: GameStore) => state.advancePhase);
+  const claimMilestone = useGameStore((state: GameStore) => state.claimMilestone);
+  const achievedMilestoneIds = player.achievedMilestoneIds;
 
   const isPlanning = player.currentPhase === GamePhase.Planning;
   const isStreaming = player.currentPhase === GamePhase.Streaming;
   const isReview = player.currentPhase === GamePhase.Review;
   const isLive = player.channel.activeStream !== undefined;
+
+  useEffect(() => {
+    const currentSubs = player.channel.subscribers;
+    const previousSubs = previousSubsRef.current;
+
+    if (previousSubs > 0 && currentSubs > previousSubs) {
+      const newMilestone = checkNewMilestone(previousSubs, currentSubs);
+      if (newMilestone && !achievedMilestoneIds.includes(newMilestone.id)) {
+        setCelebratingMilestone(newMilestone);
+      }
+    }
+
+    previousSubsRef.current = currentSubs;
+  }, [player.channel.subscribers, achievedMilestoneIds]);
+
+  const handleMilestoneClaimed = () => {
+    if (celebratingMilestone) {
+      claimMilestone(celebratingMilestone);
+      setCelebratingMilestone(null);
+    }
+  };
 
   const handleReturnToMenu = () => {
     resetGame();
@@ -121,6 +149,12 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
       {showShop && <EquipmentShop onClose={() => setShowShop(false)} />}
       {showStaffPanel && <StaffPanel onClose={() => setShowStaffPanel(false)} />}
       {showPlanner && <WeeklyPlanner onClose={() => setShowPlanner(false)} />}
+      {celebratingMilestone && (
+        <MilestoneCelebration
+          milestone={celebratingMilestone}
+          onClose={handleMilestoneClaimed}
+        />
+      )}
     </div>
   );
 }

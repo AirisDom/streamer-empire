@@ -1,12 +1,15 @@
 'use client';
 
 import { useGameStore, GameStore } from '../store/gameStore';
+import MilestoneProgress from './MilestoneProgress';
 
 export default function StatsOverlay() {
   const player = useGameStore((state: GameStore) => state.player);
 
   return (
     <div className="flex flex-col gap-4">
+      <MilestoneProgress />
+
       <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
         <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
           Channel Stats

@@ -13,6 +13,11 @@ import {
 } from '../types';
 import { calculateTotalSalaries } from '../data/staff';
 import { StreamResults } from '../data/streamResults';
+import {
+  SubscriberMilestone,
+  checkNewMilestone,
+  SUBSCRIBER_MILESTONES,
+} from '../data/milestones';
 
 function createInitialAnalytics(): Analytics {
   return {
@@ -76,6 +81,7 @@ function createInitialPlayer(
     unlockedNiches: [niche],
     activeEvents: [],
     completedEventIds: [],
+    achievedMilestoneIds: [],
   };
 }
 
@@ -100,6 +106,9 @@ export interface GameActions {
   updateStreamDuration: (elapsed: number) => void;
   applyStreamResults: (results: StreamResults) => void;
   addExperience: (amount: number) => void;
+  updateReputation: (amount: number) => void;
+  claimMilestone: (milestone: SubscriberMilestone) => void;
+  checkMilestoneReached: (previousSubs: number, currentSubs: number) => SubscriberMilestone | null;
 }
 
 export type GameStore = GameState & GameActions;
@@ -381,6 +390,67 @@ export const useGameStore = create<GameStore>((set) => ({
         },
       };
     }),
+
+  updateReputation: (amount: number) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        channel: {
+          ...state.player.channel,
+          reputation: Math.max(0, Math.min(100, state.player.channel.reputation + amount)),
+        },
+      },
+    })),
+
+  claimMilestone: (milestone: SubscriberMilestone) =>
+    set((state) => {
+      if (state.player.achievedMilestoneIds.includes(milestone.id)) {
+        return state;
+      }
+
+      let money = state.player.money;
+      let reputation = state.player.channel.reputation;
+      let unlockedNiches = [...state.player.unlockedNiches];
+
+      milestone.rewards.forEach((reward) => {
+        if (reward.type === 'money' && typeof reward.value === 'number') {
+          money += reward.value;
+        }
+        if (reward.type === 'reputation' && typeof reward.value === 'number') {
+          reputation = Math.min(100, reputation + reward.value);
+        }
+        if (reward.type === 'niche_unlock' && reward.value === 'all') {
+          unlockedNiches = [
+            ContentNiche.Gaming,
+            ContentNiche.Cooking,
+            ContentNiche.Music,
+            ContentNiche.IRL,
+          ];
+        }
+      });
+
+      return {
+        player: {
+          ...state.player,
+          money,
+          unlockedNiches,
+          achievedMilestoneIds: [...state.player.achievedMilestoneIds, milestone.id],
+          channel: {
+            ...state.player.channel,
+            reputation,
+          },
+        },
+      };
+    }),
+
+  checkMilestoneReached: (previousSubs: number, currentSubs: number): SubscriberMilestone | null => {
+    const state = useGameStore.getState();
+    const newMilestone = checkNewMilestone(previousSubs, currentSubs);
+    if (newMilestone && !state.player.achievedMilestoneIds.includes(newMilestone.id)) {
+      return newMilestone;
+    }
+    return null;
+  },
 }));
 
 useGameStore.setState({

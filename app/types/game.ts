@@ -188,6 +188,7 @@ export interface Player {
   unlockedNiches: ContentNiche[];
   activeEvents: GameEvent[];
   completedEventIds: string[];
+  achievedMilestoneIds: string[];
 }
 
 export interface GameState {
