@@ -10,6 +10,7 @@ import StaffPanel from './StaffPanel';
 import WeekPhaseIndicator from './WeekPhaseIndicator';
 import WeeklyPlanner from './WeeklyPlanner';
 import StreamingPhaseManager from './StreamingPhaseManager';
+import AnalyticsDashboard from './AnalyticsDashboard';
 
 interface GameLayoutProps {
   onReturnToMenu: () => void;
@@ -21,9 +22,11 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
   const [showPlanner, setShowPlanner] = useState(false);
   const player = useGameStore((state: GameStore) => state.player);
   const resetGame = useGameStore((state: GameStore) => state.resetGame);
+  const advancePhase = useGameStore((state: GameStore) => state.advancePhase);
 
   const isPlanning = player.currentPhase === GamePhase.Planning;
   const isStreaming = player.currentPhase === GamePhase.Streaming;
+  const isReview = player.currentPhase === GamePhase.Review;
   const isLive = player.channel.activeStream !== undefined;
 
   const handleReturnToMenu = () => {
@@ -74,8 +77,9 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
             <WeekPhaseIndicator />
 
             {isStreaming && <StreamingPhaseManager />}
+            {isReview && <AnalyticsDashboard onContinue={advancePhase} />}
 
-            {!isLive && (
+            {!isLive && !isReview && (
               <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
                 <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
                   Quick Actions
@@ -92,14 +96,16 @@ export default function GameLayout({ onReturnToMenu }: GameLayoutProps) {
               </div>
             )}
 
-            <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
-              <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Activity
-              </h3>
-              <div className="text-sm text-zinc-500 italic">
-                {isLive ? 'Streaming live...' : 'No recent activity'}
+            {!isReview && (
+              <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
+                <h3 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                  Activity
+                </h3>
+                <div className="text-sm text-zinc-500 italic">
+                  {isLive ? 'Streaming live...' : 'No recent activity'}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </aside>
       </div>
