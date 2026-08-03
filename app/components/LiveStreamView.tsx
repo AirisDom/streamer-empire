@@ -6,9 +6,18 @@ import { ContentNiche, ChatMessage, StaffRole } from '../types';
 import { createChatGenerator } from '../data/chat';
 import { calculateViewerRetentionModifier } from '../data/moderation';
 import { calculateSubscriberConversionRate } from '../data/hype';
+import {
+  IncomingRaid,
+  RaidEventResult,
+  generateIncomingRaid,
+  shouldTriggerRandomRaid,
+  determineRaidSize,
+  generateRaidChatMessage,
+} from '../data/raids';
 import PixiChatPanel from './PixiChatPanel';
 import ChatModerationPanel from './ChatModerationPanel';
 import HypeMeter from './HypeMeter';
+import RaidNotification from './RaidNotification';
 
 export interface StreamEndData {
   elapsed: number;
@@ -17,6 +26,7 @@ export interface StreamEndData {
   chatHealth: number;
   hype: number;
   newSubs: number;
+  raidsReceived: number;
 }
 
 interface LiveStreamViewProps {
@@ -46,7 +56,10 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const channelName = useGameStore((state: GameStore) => state.player.channel.name);
   const staff = useGameStore((state: GameStore) => state.player.channel.staff);
   const playerEnergy = useGameStore((state: GameStore) => state.player.energy);
+  const subscribers = useGameStore((state: GameStore) => state.player.channel.subscribers);
+  const reputation = useGameStore((state: GameStore) => state.player.channel.reputation);
   const updateSubscribers = useGameStore((state: GameStore) => state.updateSubscribers);
+  const updateReputation = useGameStore((state: GameStore) => state.updateReputation);
   const endStream = useGameStore((state: GameStore) => state.endStream);
 
   const [elapsed, setElapsed] = useState(0);
@@ -56,6 +69,9 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const [chatHealth, setChatHealth] = useState(100);
   const [currentHype, setCurrentHype] = useState(20);
   const [newSubsThisStream, setNewSubsThisStream] = useState(0);
+  const [activeRaid, setActiveRaid] = useState<IncomingRaid | null>(null);
+  const [raidViewerBonus, setRaidViewerBonus] = useState(0);
+  const [raidsReceivedCount, setRaidsReceivedCount] = useState(0);
 
   const viewerCountRef = useRef(0);
   const chatHealthRef = useRef(100);
@@ -63,6 +79,7 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const messageTimestampsRef = useRef<number[]>([]);
   const chatGeneratorRef = useRef<ReturnType<typeof createChatGenerator> | null>(null);
   const lastSubCheckRef = useRef<number | null>(null);
+  const lastRaidCheckRef = useRef<number | null>(null);
   const peakViewersRef = useRef(0);
 
   const moderators = staff.filter(s => s.role === StaffRole.Moderator);
@@ -93,18 +110,48 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
     }
   }, []);
 
+  const handleRaidResponse = useCallback((result: RaidEventResult, welcomedWarmly: boolean) => {
+    updateSubscribers(result.subscribersGained);
+    updateReputation(result.reputationGained);
+    setNewSubsThisStream((prev) => prev + result.subscribersGained);
+    setCurrentHype((prev) => Math.min(100, prev + result.hypeBoost));
+    setRaidViewerBonus((prev) => prev + result.viewersAdded);
+
+    if (chatGeneratorRef.current && activeStream) {
+      const raidMsg = generateRaidChatMessage('incoming', activeRaid?.raider.name || 'Raider');
+      const chatMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        username: welcomedWarmly ? channelName : 'system',
+        message: raidMsg,
+        timestamp: Date.now(),
+        isSubscriber: true,
+      };
+      setChatMessages((prev) => [...prev.slice(-50), chatMessage]);
+    }
+
+    setTimeout(() => {
+      setActiveRaid(null);
+      setRaidViewerBonus((prev) => Math.max(0, prev - Math.floor(result.viewersAdded * 0.5)));
+    }, 30000);
+  }, [updateSubscribers, updateReputation, activeStream, activeRaid, channelName]);
+
+  const handleRaidDismiss = useCallback(() => {
+    setActiveRaid(null);
+  }, []);
+
   useEffect(() => {
     if (!activeStream) return;
 
     const interval = setInterval(() => {
       const elapsedMs = Date.now() - activeStream.startTime;
-      setElapsed(Math.floor(elapsedMs / 1000));
+      const elapsedSecs = Math.floor(elapsedMs / 1000);
+      setElapsed(elapsedSecs);
 
       const baseViewers = 10 + Math.floor(Math.random() * 20);
       const timeBonus = Math.min(Math.floor(elapsedMs / 10000), 50);
       const retentionModifier = calculateViewerRetentionModifier(chatHealthRef.current);
       const hypeBonus = Math.floor(hypeRef.current / 10);
-      const rawViewerCount = baseViewers + timeBonus + hypeBonus + Math.floor(Math.random() * 10);
+      const rawViewerCount = baseViewers + timeBonus + hypeBonus + raidViewerBonus + Math.floor(Math.random() * 10);
       const newViewerCount = Math.floor(rawViewerCount * retentionModifier);
       setCurrentViewers(newViewerCount);
 
@@ -124,10 +171,26 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
           setNewSubsThisStream((prev) => prev + newSubs);
         }
       }
+
+      const lastRaidCheck = lastRaidCheckRef.current ?? now;
+      if (!activeRaid && now - lastRaidCheck >= 10000) {
+        lastRaidCheckRef.current = now;
+        if (shouldTriggerRandomRaid(subscribers, elapsedSecs, hypeRef.current)) {
+          const raidSize = determineRaidSize(subscribers);
+          const incomingRaid = generateIncomingRaid(
+            subscribers,
+            reputation,
+            activeStream.niche,
+            raidSize
+          );
+          setActiveRaid(incomingRaid);
+          setRaidsReceivedCount((prev) => prev + 1);
+        }
+      }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [activeStream, updateSubscribers]);
+  }, [activeStream, updateSubscribers, raidViewerBonus, subscribers, reputation, activeRaid]);
 
   useEffect(() => {
     if (!activeStream) return;
@@ -178,8 +241,9 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
       chatHealth: chatHealthRef.current,
       hype: hypeRef.current,
       newSubs: newSubsThisStream,
+      raidsReceived: raidsReceivedCount,
     });
-  }, [endStream, onEndStream, elapsed, currentViewers, newSubsThisStream]);
+  }, [endStream, onEndStream, elapsed, currentViewers, newSubsThisStream, raidsReceivedCount]);
 
   if (!activeStream) {
     return null;
@@ -189,6 +253,14 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
 
   return (
     <div className="space-y-4">
+      {activeRaid && (
+        <RaidNotification
+          raid={activeRaid}
+          onRespond={handleRaidResponse}
+          onDismiss={handleRaidDismiss}
+        />
+      )}
+
       <div className="bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden">
         <div className="bg-gradient-to-r from-red-600 to-pink-600 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">

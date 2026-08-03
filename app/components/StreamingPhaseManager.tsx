@@ -7,13 +7,15 @@ import GoLiveScreen from './GoLiveScreen';
 import GoingLiveTransition from './GoingLiveTransition';
 import LiveStreamView, { StreamEndData } from './LiveStreamView';
 import StreamResultsScreen from './StreamResultsScreen';
+import OutgoingRaidPanel from './OutgoingRaidPanel';
 import { calculateStreamResults, StreamResults } from '../data/streamResults';
+import { OutgoingRaid } from '../data/raids';
 import {
   DAYS_OF_WEEK,
   TIME_SLOTS,
 } from '../data/schedule';
 
-type StreamingState = 'select_slot' | 'pre_stream' | 'transition' | 'live' | 'results';
+type StreamingState = 'select_slot' | 'pre_stream' | 'transition' | 'live' | 'outgoing_raid' | 'results';
 
 interface StreamSlotSelectorProps {
   slots: StreamScheduleSlot[];
@@ -103,16 +105,20 @@ export default function StreamingPhaseManager() {
   const equipment = useGameStore((state: GameStore) => state.player.channel.equipment);
   const staff = useGameStore((state: GameStore) => state.player.channel.staff);
   const streamHistory = useGameStore((state: GameStore) => state.player.channel.streamHistory);
+  const subscribers = useGameStore((state: GameStore) => state.player.channel.subscribers);
+  const niche = useGameStore((state: GameStore) => state.player.channel.niche);
   const startStream = useGameStore((state: GameStore) => state.startStream);
   const advancePhase = useGameStore((state: GameStore) => state.advancePhase);
   const applyStreamResults = useGameStore((state: GameStore) => state.applyStreamResults);
   const addExperience = useGameStore((state: GameStore) => state.addExperience);
+  const updateReputation = useGameStore((state: GameStore) => state.updateReputation);
 
   const [streamingState, setStreamingState] = useState<StreamingState>(
     activeStream ? 'live' : 'select_slot'
   );
   const [selectedSlot, setSelectedSlot] = useState<StreamScheduleSlot | null>(null);
   const [currentResults, setCurrentResults] = useState<StreamResults | null>(null);
+  const [lastViewerCount, setLastViewerCount] = useState(0);
 
   const handleSelectSlot = useCallback((slot: StreamScheduleSlot) => {
     setSelectedSlot(slot);
@@ -155,8 +161,18 @@ export default function StreamingPhaseManager() {
     });
 
     setCurrentResults(results);
-    setStreamingState('results');
+    setLastViewerCount(data.currentViewers);
+    setStreamingState('outgoing_raid');
   }, [streamHistory, equipment, staff]);
+
+  const handleOutgoingRaid = useCallback((raid: OutgoingRaid) => {
+    updateReputation(raid.reputationGain);
+    setStreamingState('results');
+  }, [updateReputation]);
+
+  const handleSkipOutgoingRaid = useCallback(() => {
+    setStreamingState('results');
+  }, []);
 
   const handleResultsContinue = useCallback(() => {
     if (currentResults) {
@@ -188,6 +204,18 @@ export default function StreamingPhaseManager() {
 
   if (streamingState === 'live' && activeStream) {
     return <LiveStreamView onEndStream={handleEndStream} />;
+  }
+
+  if (streamingState === 'outgoing_raid') {
+    return (
+      <OutgoingRaidPanel
+        playerSubscribers={subscribers}
+        playerNiche={niche}
+        currentViewers={lastViewerCount}
+        onRaid={handleOutgoingRaid}
+        onSkip={handleSkipOutgoingRaid}
+      />
+    );
   }
 
   if (streamingState === 'results' && currentResults) {
