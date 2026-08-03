@@ -2,6 +2,49 @@ import { EventType, EventSeverity, ContentNiche } from '../types';
 
 export type EventCategory = 'positive' | 'negative' | 'neutral';
 
+export type ControversyType =
+  | 'old_tweets'
+  | 'hot_take'
+  | 'chat_conflict'
+  | 'clip_out_of_context'
+  | 'competitor_drama';
+
+export type ControversyResponse = 'apologize' | 'double_down' | 'ignore' | 'address_directly';
+
+export interface NicheReactionModifiers {
+  apologize: { reputation: number; subscribers: number };
+  double_down: { reputation: number; subscribers: number };
+  ignore: { reputation: number; subscribers: number };
+  address_directly: { reputation: number; subscribers: number };
+}
+
+export const NICHE_CONTROVERSY_MODIFIERS: Record<ContentNiche, NicheReactionModifiers> = {
+  [ContentNiche.Gaming]: {
+    apologize: { reputation: 0.8, subscribers: 0.9 },
+    double_down: { reputation: 1.3, subscribers: 0.7 },
+    ignore: { reputation: 0.6, subscribers: 0.8 },
+    address_directly: { reputation: 1.1, subscribers: 1.0 },
+  },
+  [ContentNiche.Cooking]: {
+    apologize: { reputation: 1.2, subscribers: 1.1 },
+    double_down: { reputation: 1.5, subscribers: 0.5 },
+    ignore: { reputation: 0.9, subscribers: 0.9 },
+    address_directly: { reputation: 1.3, subscribers: 1.1 },
+  },
+  [ContentNiche.Music]: {
+    apologize: { reputation: 1.0, subscribers: 1.0 },
+    double_down: { reputation: 1.4, subscribers: 0.8 },
+    ignore: { reputation: 0.7, subscribers: 0.85 },
+    address_directly: { reputation: 1.2, subscribers: 1.0 },
+  },
+  [ContentNiche.IRL]: {
+    apologize: { reputation: 1.3, subscribers: 1.2 },
+    double_down: { reputation: 1.6, subscribers: 0.4 },
+    ignore: { reputation: 0.5, subscribers: 0.6 },
+    address_directly: { reputation: 1.4, subscribers: 1.2 },
+  },
+};
+
 export interface EventTriggerCondition {
   minSubscribers?: number;
   maxSubscribers?: number;
@@ -41,6 +84,7 @@ export interface EventDefinition {
   triggerConditions: EventTriggerCondition;
   duration?: number;
   cooldownWeeks?: number;
+  controversyType?: ControversyType;
 }
 
 export const EVENT_DEFINITIONS: EventDefinition[] = [
@@ -93,17 +137,18 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     cooldownWeeks: 4,
   },
   {
-    id: 'controversy_minor',
+    id: 'controversy_chat_conflict',
     type: EventType.Controversy,
     severity: EventSeverity.Minor,
     category: 'negative',
-    title: 'Chat Controversy',
-    description: 'Some viewers are upset about something you said on stream.',
+    title: 'Chat Conflict Escalates',
+    description: 'A heated argument in your chat has blown up. Viewers are divided and demanding you pick a side.',
+    controversyType: 'chat_conflict',
     choices: [
       {
         id: 'apologize',
         label: 'Apologize',
-        description: 'Issue a sincere apology to your community',
+        description: 'Apologize for letting things get out of hand',
         outcomes: { reputation: -2, description: 'You apologized. Small reputation hit but viewers appreciate your humility.' },
       },
       {
@@ -115,42 +160,136 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
       {
         id: 'address_directly',
         label: 'Address Directly',
-        description: 'Explain your perspective calmly',
+        description: 'Explain the situation calmly and set boundaries',
         outcomes: { reputation: 2, description: 'Your mature response actually improved your reputation!' },
       },
     ],
-    triggerConditions: { minSubscribers: 100, probability: 0.1 },
+    triggerConditions: { minSubscribers: 100, probability: 0.08 },
     cooldownWeeks: 3,
   },
   {
-    id: 'controversy_major',
+    id: 'controversy_old_tweets',
     type: EventType.Controversy,
     severity: EventSeverity.Major,
     category: 'negative',
-    title: 'Major Controversy',
-    description: 'A clip from your stream is going viral for the wrong reasons. Social media is buzzing.',
+    title: 'Old Tweets Resurface',
+    description: 'Someone dug up old social media posts from years ago. They are being shared everywhere and taken out of context.',
+    controversyType: 'old_tweets',
     choices: [
       {
-        id: 'public_apology',
-        label: 'Public Apology Video',
-        description: 'Create a dedicated apology video',
-        outcomes: { reputation: -10, money: -100, description: 'Your apology helped contain the damage, but it still hurt your reputation.' },
+        id: 'apologize',
+        label: 'Public Apology',
+        description: 'Acknowledge your past and apologize sincerely',
+        outcomes: { reputation: -8, subscribers: -20, description: 'Your apology helped contain the damage. Some appreciate your growth.' },
       },
       {
         id: 'double_down',
         label: 'Double Down',
-        description: 'Stand by your actions, regardless of criticism',
-        outcomes: { reputation: -25, subscribers: -200, description: 'The backlash was severe. Many unsubscribed.' },
+        description: 'Refuse to apologize for old posts and criticize cancel culture',
+        outcomes: { reputation: -20, subscribers: -100, description: 'The backlash was severe. Many unsubscribed.' },
       },
       {
-        id: 'take_break',
-        label: 'Take a Break',
-        description: 'Step away from streaming temporarily',
-        outcomes: { reputation: -5, subscribers: -50, description: 'Taking time off let things cool down.' },
+        id: 'ignore',
+        label: 'Stay Silent',
+        description: 'Do not engage and wait for it to blow over',
+        outcomes: { reputation: -12, subscribers: -50, description: 'The silence was interpreted as guilt by some.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 2000, probability: 0.04 },
+    cooldownWeeks: 10,
+  },
+  {
+    id: 'controversy_hot_take',
+    type: EventType.Controversy,
+    severity: EventSeverity.Moderate,
+    category: 'negative',
+    title: 'Hot Take Backfires',
+    description: 'Your controversial opinion about a trending topic has divided your audience. Some are defending you while others are outraged.',
+    controversyType: 'hot_take',
+    choices: [
+      {
+        id: 'apologize',
+        label: 'Walk It Back',
+        description: 'Admit you spoke too hastily and clarify your position',
+        outcomes: { reputation: -5, subscribers: -15, description: 'Some viewers appreciate the humility, others see it as weak.' },
+      },
+      {
+        id: 'double_down',
+        label: 'Double Down',
+        description: 'Stand firm on your opinion and defend your view',
+        outcomes: { reputation: -15, subscribers: -80, description: 'You lost mainstream appeal but gained hardcore supporters.' },
+      },
+      {
+        id: 'ignore',
+        label: 'Move On Quietly',
+        description: 'Stop talking about it and continue with regular content',
+        outcomes: { reputation: -8, subscribers: -30, description: 'Things eventually calmed down but some viewers are still upset.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 500, probability: 0.06 },
+    cooldownWeeks: 4,
+  },
+  {
+    id: 'controversy_clip_viral',
+    type: EventType.Controversy,
+    severity: EventSeverity.Major,
+    category: 'negative',
+    title: 'Clip Taken Out of Context',
+    description: 'A clip from your stream is going viral for the wrong reasons. It has been edited to make you look bad.',
+    controversyType: 'clip_out_of_context',
+    choices: [
+      {
+        id: 'apologize',
+        label: 'Apologize Anyway',
+        description: 'Apologize for how it came across regardless of context',
+        outcomes: { reputation: -10, money: -100, description: 'Your apology helped but some see it as admitting guilt.' },
+      },
+      {
+        id: 'double_down',
+        label: 'Fight Back',
+        description: 'Release the full context and call out the manipulation',
+        outcomes: { reputation: -5, subscribers: 20, description: 'The truth came out. You gained respect from loyal fans.' },
+      },
+      {
+        id: 'ignore',
+        label: 'Wait It Out',
+        description: 'Do not engage with bad faith actors',
+        outcomes: { reputation: -15, subscribers: -60, description: 'Without your side of the story, the narrative solidified against you.' },
       },
     ],
     triggerConditions: { minSubscribers: 5000, maxReputation: 80, probability: 0.05 },
     cooldownWeeks: 8,
+  },
+  {
+    id: 'controversy_competitor_drama',
+    type: EventType.Controversy,
+    severity: EventSeverity.Moderate,
+    category: 'negative',
+    title: 'Competitor Drama',
+    description: 'Another streamer in your niche is publicly calling you out. Their fans are flooding your chat and social media.',
+    controversyType: 'competitor_drama',
+    choices: [
+      {
+        id: 'apologize',
+        label: 'Take the High Road',
+        description: 'Publicly apologize and try to de-escalate',
+        outcomes: { reputation: 3, subscribers: -10, description: 'You looked mature, but some fans wanted you to fight back.' },
+      },
+      {
+        id: 'double_down',
+        label: 'Fire Back',
+        description: 'Respond publicly and defend yourself aggressively',
+        outcomes: { reputation: -10, subscribers: 30, description: 'Drama brought viewers but damaged your professional image.' },
+      },
+      {
+        id: 'ignore',
+        label: 'Ignore Completely',
+        description: 'Refuse to engage with the drama',
+        outcomes: { reputation: 5, subscribers: -25, description: 'You stayed above it but lost viewers to the drama.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 1000, probability: 0.05 },
+    cooldownWeeks: 6,
   },
   {
     id: 'collab_offer',
@@ -550,4 +689,212 @@ export function getEventsBySeverity(severity: EventSeverity): EventDefinition[] 
 
 export function getEventsByType(type: EventType): EventDefinition[] {
   return EVENT_DEFINITIONS.filter((e) => e.type === type);
+}
+
+export function getControversyEvents(): EventDefinition[] {
+  return EVENT_DEFINITIONS.filter(
+    (e) => e.type === EventType.Controversy && e.controversyType !== undefined
+  );
+}
+
+export function mapChoiceToResponse(choiceId: string): ControversyResponse | null {
+  if (choiceId === 'address_directly') return 'address_directly';
+  if (choiceId.includes('apolog')) return 'apologize';
+  if (choiceId.includes('double_down') || choiceId === 'fire_back') return 'double_down';
+  if (choiceId.includes('ignore') || choiceId === 'stay_silent' || choiceId === 'wait_it_out') return 'ignore';
+  return null;
+}
+
+export function applyNicheModifierToOutcome(
+  outcome: EventOutcome,
+  niche: ContentNiche,
+  responseType: ControversyResponse
+): EventOutcome {
+  const modifiers = NICHE_CONTROVERSY_MODIFIERS[niche];
+  const modifier = modifiers[responseType] || { reputation: 1, subscribers: 1 };
+
+  const modifiedOutcome: EventOutcome = { ...outcome };
+
+  if (modifiedOutcome.reputation !== undefined) {
+    modifiedOutcome.reputation = Math.round(modifiedOutcome.reputation * modifier.reputation);
+  }
+  if (modifiedOutcome.subscribers !== undefined) {
+    modifiedOutcome.subscribers = Math.round(modifiedOutcome.subscribers * modifier.subscribers);
+  }
+
+  return modifiedOutcome;
+}
+
+export function applyControversyOutcome(
+  choice: EventChoice,
+  currentMoney: number,
+  niche: ContentNiche,
+  isControversy: boolean
+): { canApply: boolean; outcome: EventOutcome } {
+  if (choice.requiredMoney !== undefined && currentMoney < choice.requiredMoney) {
+    return {
+      canApply: false,
+      outcome: { description: 'Not enough money for this choice.' },
+    };
+  }
+
+  let finalOutcome = { ...choice.outcomes };
+
+  if (isControversy) {
+    const responseType = mapChoiceToResponse(choice.id);
+    if (responseType) {
+      finalOutcome = applyNicheModifierToOutcome(finalOutcome, niche, responseType);
+      finalOutcome.description = generateNicheSpecificDescription(
+        finalOutcome,
+        niche,
+        responseType
+      );
+    }
+  }
+
+  return { canApply: true, outcome: finalOutcome };
+}
+
+function generateNicheSpecificDescription(
+  outcome: EventOutcome,
+  niche: ContentNiche,
+  responseType: ControversyResponse
+): string {
+  const nicheNames: Record<ContentNiche, string> = {
+    [ContentNiche.Gaming]: 'gaming',
+    [ContentNiche.Cooking]: 'cooking',
+    [ContentNiche.Music]: 'music',
+    [ContentNiche.IRL]: 'IRL',
+  };
+
+  const nicheName = nicheNames[niche];
+  const subChange = outcome.subscribers || 0;
+  const repChange = outcome.reputation || 0;
+
+  if (responseType === 'apologize') {
+    if (niche === ContentNiche.IRL) {
+      return `Your ${nicheName} audience values authenticity. The apology resonated deeply. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.Cooking) {
+      return `Your wholesome ${nicheName} community appreciated the maturity. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.Gaming) {
+      return `Your ${nicheName} viewers found the apology okay but some saw it as soft. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    return `Your ${nicheName} audience had mixed reactions to the apology. Rep: ${repChange}, Subs: ${subChange}`;
+  }
+
+  if (responseType === 'double_down') {
+    if (niche === ContentNiche.Gaming) {
+      return `Some ${nicheName} fans respect standing your ground, but many still left. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.IRL) {
+      return `Your ${nicheName} audience expects accountability. Doubling down hurt badly. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.Cooking) {
+      return `Your family-friendly ${nicheName} audience was shocked. Major damage. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    return `Your ${nicheName} community was divided by your stance. Rep: ${repChange}, Subs: ${subChange}`;
+  }
+
+  if (responseType === 'ignore') {
+    if (niche === ContentNiche.IRL) {
+      return `Your ${nicheName} viewers expected engagement. Silence was seen as dismissive. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.Gaming) {
+      return `Your ${nicheName} community moved on fairly quickly. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    return `Your ${nicheName} audience gradually lost interest in the drama. Rep: ${repChange}, Subs: ${subChange}`;
+  }
+
+  if (responseType === 'address_directly') {
+    if (niche === ContentNiche.IRL) {
+      return `Your ${nicheName} audience loved the transparent approach. Direct wins! Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.Cooking) {
+      return `Your ${nicheName} community appreciated the honest conversation. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    if (niche === ContentNiche.Gaming) {
+      return `Your ${nicheName} viewers respected the direct approach. Rep: ${repChange}, Subs: ${subChange}`;
+    }
+    return `Your ${nicheName} audience valued your straightforward communication. Rep: ${repChange}, Subs: ${subChange}`;
+  }
+
+  return outcome.description;
+}
+
+export interface ControversyResult {
+  outcome: EventOutcome;
+  nicheImpact: string;
+  responseType: ControversyResponse;
+}
+
+export function resolveControversy(
+  event: EventDefinition,
+  choice: EventChoice,
+  niche: ContentNiche,
+  currentMoney: number
+): { success: boolean; result: ControversyResult | null; error?: string } {
+  if (choice.requiredMoney !== undefined && currentMoney < choice.requiredMoney) {
+    return {
+      success: false,
+      result: null,
+      error: 'Not enough money for this choice.',
+    };
+  }
+
+  const responseType = mapChoiceToResponse(choice.id);
+  if (!responseType) {
+    return {
+      success: true,
+      result: {
+        outcome: choice.outcomes,
+        nicheImpact: 'Standard response applied.',
+        responseType: 'ignore',
+      },
+    };
+  }
+
+  const modifiedOutcome = applyNicheModifierToOutcome(choice.outcomes, niche, responseType);
+  const description = generateNicheSpecificDescription(modifiedOutcome, niche, responseType);
+
+  return {
+    success: true,
+    result: {
+      outcome: { ...modifiedOutcome, description },
+      nicheImpact: getNicheImpactExplanation(niche, responseType),
+      responseType,
+    },
+  };
+}
+
+function getNicheImpactExplanation(niche: ContentNiche, responseType: ControversyResponse): string {
+  const explanations: Record<ContentNiche, Record<ControversyResponse, string>> = {
+    [ContentNiche.Gaming]: {
+      apologize: 'Gaming audiences are more tolerant of drama but may see apologies as weak.',
+      double_down: 'Some gamers respect not backing down, softening the blow slightly.',
+      ignore: 'Gaming communities often move on quickly to the next controversy.',
+      address_directly: 'Direct communication works well with gaming audiences.',
+    },
+    [ContentNiche.Cooking]: {
+      apologize: 'Cooking audiences value warmth and forgiveness. Apologies are well-received.',
+      double_down: 'Family-friendly cooking audiences react very negatively to confrontation.',
+      ignore: 'Cooking viewers prefer resolution but will wait patiently.',
+      address_directly: 'Cooking audiences appreciate honest, heartfelt communication.',
+    },
+    [ContentNiche.Music]: {
+      apologize: 'Music audiences have balanced reactions to apologies.',
+      double_down: 'Creative communities can be divided on artistic integrity vs accountability.',
+      ignore: 'Music fans may interpret silence as artistic temperament.',
+      address_directly: 'Music audiences value authenticity in communication.',
+    },
+    [ContentNiche.IRL]: {
+      apologize: 'IRL audiences strongly value authenticity. Sincere apologies gain major respect.',
+      double_down: 'IRL viewers expect real accountability. Doubling down is severely punished.',
+      ignore: 'IRL communities expect engagement. Silence is seen as hiding something.',
+      address_directly: 'IRL audiences highly value transparent, direct communication.',
+    },
+  };
+
+  return explanations[niche][responseType];
 }
