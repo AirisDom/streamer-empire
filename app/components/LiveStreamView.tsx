@@ -10,8 +10,17 @@ import PixiChatPanel from './PixiChatPanel';
 import ChatModerationPanel from './ChatModerationPanel';
 import HypeMeter from './HypeMeter';
 
+export interface StreamEndData {
+  elapsed: number;
+  currentViewers: number;
+  peakViewers: number;
+  chatHealth: number;
+  hype: number;
+  newSubs: number;
+}
+
 interface LiveStreamViewProps {
-  onEndStream: () => void;
+  onEndStream: (data: StreamEndData) => void;
 }
 
 const NICHE_INFO: Record<ContentNiche, { name: string; icon: string }> = {
@@ -54,6 +63,7 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
   const messageTimestampsRef = useRef<number[]>([]);
   const chatGeneratorRef = useRef<ReturnType<typeof createChatGenerator> | null>(null);
   const lastSubCheckRef = useRef<number | null>(null);
+  const peakViewersRef = useRef(0);
 
   const moderators = staff.filter(s => s.role === StaffRole.Moderator);
 
@@ -97,6 +107,10 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
       const rawViewerCount = baseViewers + timeBonus + hypeBonus + Math.floor(Math.random() * 10);
       const newViewerCount = Math.floor(rawViewerCount * retentionModifier);
       setCurrentViewers(newViewerCount);
+
+      if (newViewerCount > peakViewersRef.current) {
+        peakViewersRef.current = newViewerCount;
+      }
 
       const now = Date.now();
       const lastSubCheck = lastSubCheckRef.current ?? now;
@@ -157,8 +171,15 @@ export default function LiveStreamView({ onEndStream }: LiveStreamViewProps) {
       chatGeneratorRef.current.stop();
     }
     endStream();
-    onEndStream();
-  }, [endStream, onEndStream]);
+    onEndStream({
+      elapsed,
+      currentViewers,
+      peakViewers: peakViewersRef.current,
+      chatHealth: chatHealthRef.current,
+      hype: hypeRef.current,
+      newSubs: newSubsThisStream,
+    });
+  }, [endStream, onEndStream, elapsed, currentViewers, newSubsThisStream]);
 
   if (!activeStream) {
     return null;

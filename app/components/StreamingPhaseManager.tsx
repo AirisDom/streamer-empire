@@ -5,13 +5,15 @@ import { useGameStore, GameStore } from '../store/gameStore';
 import { StreamScheduleSlot } from '../types';
 import GoLiveScreen from './GoLiveScreen';
 import GoingLiveTransition from './GoingLiveTransition';
-import LiveStreamView from './LiveStreamView';
+import LiveStreamView, { StreamEndData } from './LiveStreamView';
+import StreamResultsScreen from './StreamResultsScreen';
+import { calculateStreamResults, StreamResults } from '../data/streamResults';
 import {
   DAYS_OF_WEEK,
   TIME_SLOTS,
 } from '../data/schedule';
 
-type StreamingState = 'select_slot' | 'pre_stream' | 'transition' | 'live';
+type StreamingState = 'select_slot' | 'pre_stream' | 'transition' | 'live' | 'results';
 
 interface StreamSlotSelectorProps {
   slots: StreamScheduleSlot[];
@@ -98,13 +100,19 @@ function StreamSlotSelector({ slots, onSelectSlot, onSkipStreaming }: StreamSlot
 export default function StreamingPhaseManager() {
   const schedule = useGameStore((state: GameStore) => state.player.channel.schedule);
   const activeStream = useGameStore((state: GameStore) => state.player.channel.activeStream);
+  const equipment = useGameStore((state: GameStore) => state.player.channel.equipment);
+  const staff = useGameStore((state: GameStore) => state.player.channel.staff);
+  const streamHistory = useGameStore((state: GameStore) => state.player.channel.streamHistory);
   const startStream = useGameStore((state: GameStore) => state.startStream);
   const advancePhase = useGameStore((state: GameStore) => state.advancePhase);
+  const applyStreamResults = useGameStore((state: GameStore) => state.applyStreamResults);
+  const addExperience = useGameStore((state: GameStore) => state.addExperience);
 
   const [streamingState, setStreamingState] = useState<StreamingState>(
     activeStream ? 'live' : 'select_slot'
   );
   const [selectedSlot, setSelectedSlot] = useState<StreamScheduleSlot | null>(null);
+  const [currentResults, setCurrentResults] = useState<StreamResults | null>(null);
 
   const handleSelectSlot = useCallback((slot: StreamScheduleSlot) => {
     setSelectedSlot(slot);
@@ -127,10 +135,38 @@ export default function StreamingPhaseManager() {
     setStreamingState('select_slot');
   }, []);
 
-  const handleEndStream = useCallback(() => {
+  const handleEndStream = useCallback((data: StreamEndData) => {
+    const latestSession = streamHistory[streamHistory.length - 1];
+    if (!latestSession) {
+      setStreamingState('select_slot');
+      return;
+    }
+
+    const results = calculateStreamResults({
+      session: latestSession,
+      equipment,
+      staff,
+      currentViewers: data.currentViewers,
+      peakViewers: data.peakViewers,
+      chatHealth: data.chatHealth,
+      hype: data.hype,
+      newSubs: data.newSubs,
+      elapsedSeconds: data.elapsed,
+    });
+
+    setCurrentResults(results);
+    setStreamingState('results');
+  }, [streamHistory, equipment, staff]);
+
+  const handleResultsContinue = useCallback(() => {
+    if (currentResults) {
+      applyStreamResults(currentResults);
+      addExperience(currentResults.experienceGained);
+    }
+    setCurrentResults(null);
     setSelectedSlot(null);
     setStreamingState('select_slot');
-  }, []);
+  }, [currentResults, applyStreamResults, addExperience]);
 
   const handleSkipStreaming = useCallback(() => {
     advancePhase();
@@ -152,6 +188,15 @@ export default function StreamingPhaseManager() {
 
   if (streamingState === 'live' && activeStream) {
     return <LiveStreamView onEndStream={handleEndStream} />;
+  }
+
+  if (streamingState === 'results' && currentResults) {
+    return (
+      <StreamResultsScreen
+        results={currentResults}
+        onContinue={handleResultsContinue}
+      />
+    );
   }
 
   return (

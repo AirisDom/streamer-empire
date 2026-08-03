@@ -12,6 +12,7 @@ import {
   StreamSession,
 } from '../types';
 import { calculateTotalSalaries } from '../data/staff';
+import { StreamResults } from '../data/streamResults';
 
 function createInitialAnalytics(): Analytics {
   return {
@@ -97,6 +98,8 @@ export interface GameActions {
   startStream: (slot: StreamScheduleSlot) => void;
   endStream: () => void;
   updateStreamDuration: (elapsed: number) => void;
+  applyStreamResults: (results: StreamResults) => void;
+  addExperience: (amount: number) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -319,6 +322,62 @@ export const useGameStore = create<GameStore>((set) => ({
               startTime: Date.now() - elapsed,
             },
           },
+        },
+      };
+    }),
+
+  applyStreamResults: (results: StreamResults) =>
+    set((state) => {
+      const analytics = state.player.channel.analytics;
+      const totalStreams = analytics.totalStreams + 1;
+      const totalStreamTime = analytics.totalStreamTime + results.duration;
+      const totalViewers = analytics.averageViewers * analytics.totalStreams + results.averageViewers;
+      const newAverageViewers = Math.floor(totalViewers / totalStreams);
+
+      const updatedAnalytics: Analytics = {
+        ...analytics,
+        totalStreams,
+        totalStreamTime,
+        averageViewers: newAverageViewers,
+        peakViewers: Math.max(analytics.peakViewers, results.peakViewers),
+        totalSubscribers: state.player.channel.subscribers + results.newSubscribers,
+        subscriberGrowthRate: results.newSubscribers,
+        totalRevenue: analytics.totalRevenue + results.totalRevenue,
+        revenueBySource: {
+          ...analytics.revenueBySource,
+          donations: analytics.revenueBySource.donations + results.donationRevenue,
+          adRevenue: analytics.revenueBySource.adRevenue + results.adRevenue,
+        },
+        viewersByNiche: {
+          ...analytics.viewersByNiche,
+          [results.niche]: analytics.viewersByNiche[results.niche] + results.averageViewers,
+        },
+      };
+
+      return {
+        player: {
+          ...state.player,
+          money: state.player.money + results.totalRevenue,
+          channel: {
+            ...state.player.channel,
+            subscribers: state.player.channel.subscribers + results.newSubscribers,
+            analytics: updatedAnalytics,
+          },
+        },
+      };
+    }),
+
+  addExperience: (amount: number) =>
+    set((state) => {
+      const newExperience = state.player.experience + amount;
+      const xpPerLevel = 100;
+      const newLevel = Math.floor(newExperience / xpPerLevel) + 1;
+
+      return {
+        player: {
+          ...state.player,
+          experience: newExperience,
+          level: newLevel,
         },
       };
     }),
