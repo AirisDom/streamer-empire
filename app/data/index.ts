@@ -4,3 +4,4 @@ export * from './schedule';
 export * from './streamResults';
 export * from './analytics';
 export * from './milestones';
+export * from './events';

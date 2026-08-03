@@ -173,6 +173,11 @@ export interface Channel {
   streamHistory: StreamSession[];
 }
 
+export interface EventCooldownEntry {
+  eventId: string;
+  expiresAtWeek: number;
+}
+
 export interface Player {
   id: string;
   username: string;
@@ -189,6 +194,8 @@ export interface Player {
   activeEvents: GameEvent[];
   completedEventIds: string[];
   achievedMilestoneIds: string[];
+  eventCooldowns: EventCooldownEntry[];
+  eventHistory: { eventId: string; choiceId: string; week: number }[];
 }
 
 export interface GameState {

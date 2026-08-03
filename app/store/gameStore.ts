@@ -16,8 +16,16 @@ import { StreamResults } from '../data/streamResults';
 import {
   SubscriberMilestone,
   checkNewMilestone,
-  SUBSCRIBER_MILESTONES,
 } from '../data/milestones';
+import {
+  EventChoice,
+  EventCooldown,
+  ActiveEvent,
+  rollForEvents,
+  applyEventOutcome,
+  calculateCooldownExpiry,
+  EVENT_DEFINITIONS,
+} from '../data/events';
 
 function createInitialAnalytics(): Analytics {
   return {
@@ -82,6 +90,8 @@ function createInitialPlayer(
     activeEvents: [],
     completedEventIds: [],
     achievedMilestoneIds: [],
+    eventCooldowns: [],
+    eventHistory: [],
   };
 }
 
@@ -109,6 +119,12 @@ export interface GameActions {
   updateReputation: (amount: number) => void;
   claimMilestone: (milestone: SubscriberMilestone) => void;
   checkMilestoneReached: (previousSubs: number, currentSubs: number) => SubscriberMilestone | null;
+  triggerRandomEvents: () => ActiveEvent[];
+  addActiveEvent: (event: ActiveEvent) => void;
+  resolveEvent: (eventId: string, choice: EventChoice) => { success: boolean; message: string };
+  removeActiveEvent: (eventId: string) => void;
+  getActiveEvents: () => ActiveEvent[];
+  clearExpiredCooldowns: () => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -451,6 +467,198 @@ export const useGameStore = create<GameStore>((set) => ({
     }
     return null;
   },
+
+  triggerRandomEvents: (): ActiveEvent[] => {
+    const state = useGameStore.getState();
+    const { player } = state;
+    const activeEventIds = player.activeEvents.map((e) => e.id);
+
+    const cooldowns: EventCooldown[] = player.eventCooldowns.map((c) => ({
+      eventId: c.eventId,
+      expiresAtWeek: c.expiresAtWeek,
+    }));
+
+    const triggeredEvents = rollForEvents(
+      player.channel.subscribers,
+      player.currentWeek,
+      player.channel.reputation,
+      player.channel.niche,
+      cooldowns,
+      activeEventIds
+    );
+
+    const newActiveEvents: ActiveEvent[] = triggeredEvents.map((event) => ({
+      event,
+      triggeredAt: Date.now(),
+      expiresAt: event.duration ? Date.now() + event.duration : undefined,
+    }));
+
+    if (newActiveEvents.length > 0) {
+      useGameStore.setState({
+        player: {
+          ...player,
+          activeEvents: [...player.activeEvents, ...newActiveEvents.map((ae) => ({
+            id: ae.event.id,
+            type: ae.event.type,
+            severity: ae.event.severity,
+            title: ae.event.title,
+            description: ae.event.description,
+            options: ae.event.choices.map((c) => ({
+              id: c.id,
+              label: c.label,
+              description: c.description,
+              effects: Object.entries(c.outcomes)
+                .filter(([key]) => key !== 'description')
+                .map(([stat, value]) => ({
+                  stat,
+                  value: typeof value === 'number' ? value : 0,
+                  isPercentage: false,
+                })),
+            })),
+            occurredAt: ae.triggeredAt,
+            expiresAt: ae.expiresAt,
+            resolved: false,
+          }))],
+        },
+      });
+    }
+
+    return newActiveEvents;
+  },
+
+  addActiveEvent: (activeEvent: ActiveEvent) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        activeEvents: [...state.player.activeEvents, {
+          id: activeEvent.event.id,
+          type: activeEvent.event.type,
+          severity: activeEvent.event.severity,
+          title: activeEvent.event.title,
+          description: activeEvent.event.description,
+          options: activeEvent.event.choices.map((c) => ({
+            id: c.id,
+            label: c.label,
+            description: c.description,
+            effects: Object.entries(c.outcomes)
+              .filter(([key]) => key !== 'description')
+              .map(([stat, value]) => ({
+                stat,
+                value: typeof value === 'number' ? value : 0,
+                isPercentage: false,
+              })),
+          })),
+          occurredAt: activeEvent.triggeredAt,
+          expiresAt: activeEvent.expiresAt,
+          resolved: false,
+        }],
+      },
+    })),
+
+  resolveEvent: (eventId: string, choice: EventChoice): { success: boolean; message: string } => {
+    const state = useGameStore.getState();
+    const { player } = state;
+
+    const result = applyEventOutcome(choice, player.money);
+    if (!result.canApply) {
+      return { success: false, message: result.outcome.description };
+    }
+
+    const { outcome } = result;
+    let newMoney = player.money;
+    let newSubscribers = player.channel.subscribers;
+    let newReputation = player.channel.reputation;
+    let newExperience = player.experience;
+
+    if (outcome.money) newMoney += outcome.money;
+    if (outcome.subscribers) newSubscribers = Math.max(0, newSubscribers + outcome.subscribers);
+    if (outcome.reputation) newReputation = Math.max(0, Math.min(100, newReputation + outcome.reputation));
+    if (outcome.experience) newExperience += outcome.experience;
+
+    const eventFromDefinitions = EVENT_DEFINITIONS.find((e) => e.id === eventId);
+    const cooldownWeeks = eventFromDefinitions?.cooldownWeeks ?? 0;
+
+    const newCooldowns = cooldownWeeks > 0
+      ? [...player.eventCooldowns, { eventId, expiresAtWeek: calculateCooldownExpiry(player.currentWeek, cooldownWeeks) }]
+      : player.eventCooldowns;
+
+    useGameStore.setState({
+      player: {
+        ...player,
+        money: newMoney,
+        experience: newExperience,
+        activeEvents: player.activeEvents.map((e) =>
+          e.id === eventId ? { ...e, resolved: true } : e
+        ),
+        completedEventIds: [...player.completedEventIds, eventId],
+        eventCooldowns: newCooldowns,
+        eventHistory: [...player.eventHistory, { eventId, choiceId: choice.id, week: player.currentWeek }],
+        channel: {
+          ...player.channel,
+          subscribers: newSubscribers,
+          reputation: newReputation,
+        },
+      },
+    });
+
+    return { success: true, message: outcome.description };
+  },
+
+  removeActiveEvent: (eventId: string) =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        activeEvents: state.player.activeEvents.filter((e) => e.id !== eventId),
+      },
+    })),
+
+  getActiveEvents: (): ActiveEvent[] => {
+    const state = useGameStore.getState();
+    return state.player.activeEvents
+      .filter((e) => !e.resolved)
+      .map((gameEvent) => {
+        const eventDef = EVENT_DEFINITIONS.find((ed) => ed.id === gameEvent.id);
+        if (!eventDef) {
+          return {
+            event: {
+              id: gameEvent.id,
+              type: gameEvent.type,
+              severity: gameEvent.severity,
+              category: 'neutral' as const,
+              title: gameEvent.title,
+              description: gameEvent.description,
+              choices: gameEvent.options.map((o) => ({
+                id: o.id,
+                label: o.label,
+                description: o.description,
+                outcomes: {
+                  description: o.description,
+                  ...o.effects.reduce((acc, eff) => ({ ...acc, [eff.stat]: eff.value }), {}),
+                },
+              })),
+              triggerConditions: { probability: 0 },
+            },
+            triggeredAt: gameEvent.occurredAt,
+            expiresAt: gameEvent.expiresAt,
+          };
+        }
+        return {
+          event: eventDef,
+          triggeredAt: gameEvent.occurredAt,
+          expiresAt: gameEvent.expiresAt,
+        };
+      });
+  },
+
+  clearExpiredCooldowns: () =>
+    set((state) => ({
+      player: {
+        ...state.player,
+        eventCooldowns: state.player.eventCooldowns.filter(
+          (c) => c.expiresAtWeek > state.player.currentWeek
+        ),
+      },
+    })),
 }));
 
 useGameStore.setState({
