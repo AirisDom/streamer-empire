@@ -6,3 +6,4 @@ export * from './analytics';
 export * from './milestones';
 export * from './events';
 export * from './raids';
+export * from './collabs';

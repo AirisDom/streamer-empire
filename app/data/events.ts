@@ -292,28 +292,185 @@ export const EVENT_DEFINITIONS: EventDefinition[] = [
     cooldownWeeks: 6,
   },
   {
-    id: 'collab_offer',
+    id: 'collab_small_creator',
     type: EventType.Collab,
-    severity: EventSeverity.Moderate,
+    severity: EventSeverity.Minor,
     category: 'positive',
-    title: 'Collaboration Offer',
-    description: 'Another creator in your niche wants to collaborate on a stream!',
+    title: 'Small Creator Wants to Collab',
+    description: 'An up-and-coming streamer in your niche reached out for a collaboration!',
     choices: [
       {
-        id: 'accept_collab',
-        label: 'Accept Collaboration',
-        description: 'Team up for a joint stream',
-        outcomes: { subscribers: 50, reputation: 5, experience: 25, description: 'Great collab! You gained exposure to a new audience.' },
+        id: 'accept_mentor',
+        label: 'Take Them Under Your Wing',
+        description: 'Mentor them and help them grow',
+        outcomes: { subscribers: 20, reputation: 8, experience: 30, description: 'You helped a newcomer! Your community loves your supportive nature.' },
+      },
+      {
+        id: 'accept_equal',
+        label: 'Collab as Equals',
+        description: 'Stream together normally',
+        outcomes: { subscribers: 15, reputation: 3, experience: 15, description: 'Nice collab! Gained some exposure to their audience.' },
       },
       {
         id: 'decline_politely',
         label: 'Decline Politely',
         description: 'You are too busy right now',
+        outcomes: { reputation: -1, description: 'They understood, minimal impact.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 200, minReputation: 35, probability: 0.1 },
+    cooldownWeeks: 2,
+  },
+  {
+    id: 'collab_similar_creator',
+    type: EventType.Collab,
+    severity: EventSeverity.Moderate,
+    category: 'positive',
+    title: 'Collaboration Opportunity',
+    description: 'A creator with similar audience size wants to team up for a joint stream!',
+    choices: [
+      {
+        id: 'accept_joint_stream',
+        label: 'Joint Stream',
+        description: 'Do a full collaborative stream together',
+        outcomes: { subscribers: 50, reputation: 5, experience: 25, description: 'Great collab! You both shared audiences and gained exposure.' },
+      },
+      {
+        id: 'accept_guest_spot',
+        label: 'Guest Appearance Only',
+        description: 'Appear briefly on each other streams',
+        outcomes: { subscribers: 25, reputation: 3, experience: 10, description: 'Quick but effective! Some new faces in the community.' },
+      },
+      {
+        id: 'decline_politely',
+        label: 'Decline Politely',
+        description: 'Not the right time',
         outcomes: { reputation: -2, description: 'They were disappointed, slight reputation hit.' },
       },
     ],
-    triggerConditions: { minSubscribers: 200, minReputation: 40, probability: 0.12 },
-    cooldownWeeks: 2,
+    triggerConditions: { minSubscribers: 500, minReputation: 40, probability: 0.1 },
+    cooldownWeeks: 3,
+  },
+  {
+    id: 'collab_big_creator',
+    type: EventType.Collab,
+    severity: EventSeverity.Major,
+    category: 'positive',
+    title: 'Big Creator Noticed You!',
+    description: 'A much larger streamer wants to collaborate! This could be huge for your channel!',
+    choices: [
+      {
+        id: 'accept_featured',
+        label: 'Accept Featured Collab',
+        description: 'Go all out and prepare your best content',
+        outcomes: { subscribers: 200, reputation: 12, experience: 50, description: 'Incredible exposure! Their audience loved you!' },
+      },
+      {
+        id: 'accept_casual',
+        label: 'Keep It Casual',
+        description: 'Just be yourself without pressure',
+        outcomes: { subscribers: 100, reputation: 6, experience: 30, description: 'Solid collab! You came across as authentic.' },
+      },
+      {
+        id: 'decline_nervous',
+        label: 'Decline (Too Nervous)',
+        description: 'You are not ready for this spotlight',
+        outcomes: { reputation: -5, description: 'Missed opportunity. They might not ask again.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 1000, minReputation: 50, probability: 0.06 },
+    cooldownWeeks: 5,
+  },
+  {
+    id: 'collab_crossover_niche',
+    type: EventType.Collab,
+    severity: EventSeverity.Moderate,
+    category: 'neutral',
+    title: 'Cross-Niche Collab Request',
+    description: 'A creator from a different niche wants to do a crossover stream. Could be interesting or awkward!',
+    choices: [
+      {
+        id: 'accept_experiment',
+        label: 'Try Something New',
+        description: 'Embrace the crossover and experiment',
+        outcomes: { subscribers: 40, reputation: 4, experience: 35, description: 'Unexpected hit! Your audiences actually mixed well!' },
+      },
+      {
+        id: 'accept_your_style',
+        label: 'Stick to Your Style',
+        description: 'Collab but keep your usual content format',
+        outcomes: { subscribers: 20, reputation: 2, experience: 15, description: 'Decent collab. Some of their viewers found your content.' },
+      },
+      {
+        id: 'decline_mismatch',
+        label: 'Decline (Niche Mismatch)',
+        description: 'Your audiences are too different',
+        outcomes: { reputation: -1, description: 'Probably the safe choice. No hard feelings.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 300, probability: 0.08 },
+    cooldownWeeks: 4,
+  },
+  {
+    id: 'collab_series_offer',
+    type: EventType.Collab,
+    severity: EventSeverity.Major,
+    category: 'positive',
+    title: 'Collab Series Proposal',
+    description: 'A creator proposes doing a recurring collaboration series together!',
+    choices: [
+      {
+        id: 'accept_weekly',
+        label: 'Weekly Series',
+        description: 'Commit to weekly collab streams',
+        outcomes: { subscribers: 150, reputation: 10, experience: 60, money: -50, description: 'Series launched! The recurring content is building both your audiences!' },
+        requiredMoney: 50,
+      },
+      {
+        id: 'accept_monthly',
+        label: 'Monthly Series',
+        description: 'More manageable monthly collabs',
+        outcomes: { subscribers: 80, reputation: 6, experience: 35, description: 'Monthly collab established! Sustainable growth for both channels.' },
+      },
+      {
+        id: 'decline_commitment',
+        label: 'Decline (Too Much Commitment)',
+        description: 'You prefer staying flexible',
+        outcomes: { reputation: -3, description: 'They were hoping for more. Maybe a one-off instead?' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 2000, minReputation: 55, probability: 0.05 },
+    cooldownWeeks: 8,
+  },
+  {
+    id: 'collab_charity_stream',
+    type: EventType.Collab,
+    severity: EventSeverity.Major,
+    category: 'positive',
+    title: 'Charity Stream Invitation',
+    description: 'Multiple creators are organizing a charity stream event and want you to join!',
+    choices: [
+      {
+        id: 'accept_host',
+        label: 'Host a Segment',
+        description: 'Take a prominent role in the event',
+        outcomes: { subscribers: 100, reputation: 15, experience: 40, description: 'You shined during the charity event! Great exposure and goodwill!' },
+      },
+      {
+        id: 'accept_participant',
+        label: 'Participate Normally',
+        description: 'Join as a regular participant',
+        outcomes: { subscribers: 50, reputation: 10, experience: 25, description: 'Good cause, good vibes! The community appreciated your involvement.' },
+      },
+      {
+        id: 'decline_schedule',
+        label: 'Decline (Schedule Conflict)',
+        description: 'You cannot make it work',
+        outcomes: { reputation: -2, description: 'Unfortunate timing. Maybe next time.' },
+      },
+    ],
+    triggerConditions: { minSubscribers: 500, minReputation: 45, probability: 0.04 },
+    cooldownWeeks: 10,
   },
   {
     id: 'viral_clip',
@@ -897,4 +1054,25 @@ function getNicheImpactExplanation(niche: ContentNiche, responseType: Controvers
   };
 
   return explanations[niche][responseType];
+}
+
+export function getCollabEvents(): EventDefinition[] {
+  return EVENT_DEFINITIONS.filter((e) => e.type === EventType.Collab);
+}
+
+export function getCollabEventsBySize(): {
+  small: EventDefinition[];
+  similar: EventDefinition[];
+  large: EventDefinition[];
+} {
+  const collabEvents = getCollabEvents();
+  return {
+    small: collabEvents.filter((e) => e.id === 'collab_small_creator'),
+    similar: collabEvents.filter((e) =>
+      ['collab_similar_creator', 'collab_crossover_niche', 'collab_charity_stream'].includes(e.id)
+    ),
+    large: collabEvents.filter((e) =>
+      ['collab_big_creator', 'collab_series_offer'].includes(e.id)
+    ),
+  };
 }

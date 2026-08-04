@@ -12,6 +12,8 @@ import {
   getEventsBySeverity,
   getEventsByType,
   getControversyEvents,
+  getCollabEvents,
+  getCollabEventsBySize,
   mapChoiceToResponse,
   applyNicheModifierToOutcome,
   applyControversyOutcome,
@@ -426,6 +428,95 @@ describe('Event System', () => {
       const gamingResult = resolveControversy(mockEvent, choice, ContentNiche.Gaming, 1000);
       const cookingResult = resolveControversy(mockEvent, choice, ContentNiche.Cooking, 1000);
       expect(gamingResult.result?.outcome.subscribers).not.toBe(cookingResult.result?.outcome.subscribers);
+    });
+  });
+
+  describe('Collaboration Events', () => {
+    it('should have multiple collab events defined', () => {
+      const collabEvents = getCollabEvents();
+      expect(collabEvents.length).toBeGreaterThanOrEqual(5);
+    });
+
+    it('should have all collab events with type Collab', () => {
+      const collabEvents = getCollabEvents();
+      collabEvents.forEach((event) => {
+        expect(event.type).toBe(EventType.Collab);
+      });
+    });
+
+    it('should have collab events for different sizes', () => {
+      const { small, similar, large } = getCollabEventsBySize();
+      expect(small.length).toBeGreaterThan(0);
+      expect(similar.length).toBeGreaterThan(0);
+      expect(large.length).toBeGreaterThan(0);
+    });
+
+    it('should have small creator collab event', () => {
+      const collabEvents = getCollabEvents();
+      const smallCreator = collabEvents.find((e) => e.id === 'collab_small_creator');
+      expect(smallCreator).toBeDefined();
+      expect(smallCreator?.severity).toBe(EventSeverity.Minor);
+    });
+
+    it('should have big creator collab event', () => {
+      const collabEvents = getCollabEvents();
+      const bigCreator = collabEvents.find((e) => e.id === 'collab_big_creator');
+      expect(bigCreator).toBeDefined();
+      expect(bigCreator?.severity).toBe(EventSeverity.Major);
+    });
+
+    it('should have cross-niche collab event', () => {
+      const collabEvents = getCollabEvents();
+      const crossNiche = collabEvents.find((e) => e.id === 'collab_crossover_niche');
+      expect(crossNiche).toBeDefined();
+      expect(crossNiche?.category).toBe('neutral');
+    });
+
+    it('should have collab series event', () => {
+      const collabEvents = getCollabEvents();
+      const series = collabEvents.find((e) => e.id === 'collab_series_offer');
+      expect(series).toBeDefined();
+      expect(series?.severity).toBe(EventSeverity.Major);
+    });
+
+    it('should have charity stream collab event', () => {
+      const collabEvents = getCollabEvents();
+      const charity = collabEvents.find((e) => e.id === 'collab_charity_stream');
+      expect(charity).toBeDefined();
+    });
+
+    it('should have accept and decline options on all collab events', () => {
+      const collabEvents = getCollabEvents();
+      collabEvents.forEach((event) => {
+        const hasAcceptOption = event.choices.some((c) =>
+          c.id.includes('accept') || c.id.includes('mentor') || c.id.includes('host') || c.id.includes('participant')
+        );
+        const hasDeclineOption = event.choices.some((c) => c.id.includes('decline'));
+        expect(hasAcceptOption).toBe(true);
+        expect(hasDeclineOption).toBe(true);
+      });
+    });
+
+    it('should have increasing subscriber rewards for bigger collabs', () => {
+      const collabEvents = getCollabEvents();
+      const smallEvent = collabEvents.find((e) => e.id === 'collab_small_creator');
+      const bigEvent = collabEvents.find((e) => e.id === 'collab_big_creator');
+
+      const smallBestChoice = smallEvent?.choices.find((c) => c.id === 'accept_mentor');
+      const bigBestChoice = bigEvent?.choices.find((c) => c.id === 'accept_featured');
+
+      expect(bigBestChoice?.outcomes.subscribers).toBeGreaterThan(smallBestChoice?.outcomes.subscribers || 0);
+    });
+
+    it('should have higher reputation requirements for big creator collabs', () => {
+      const collabEvents = getCollabEvents();
+      const smallEvent = collabEvents.find((e) => e.id === 'collab_small_creator');
+      const bigEvent = collabEvents.find((e) => e.id === 'collab_big_creator');
+
+      const smallMinRep = smallEvent?.triggerConditions.minReputation || 0;
+      const bigMinRep = bigEvent?.triggerConditions.minReputation || 0;
+
+      expect(bigMinRep).toBeGreaterThan(smallMinRep);
     });
   });
 });
